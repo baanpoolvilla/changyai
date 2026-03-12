@@ -459,7 +459,17 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Preventive Maintenance')),
+      appBar: AppBar(
+        title: const Text('Preventive Maintenance'),
+        actions: [
+          FilledButton.tonalIcon(
+            onPressed: _showCreatePmDialog,
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('สร้าง PM'),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _schedules.isEmpty
@@ -475,9 +485,10 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                   const SizedBox(height: 16),
                   const Text('ยังไม่มี PM Schedule'),
                   const SizedBox(height: 8),
-                  const Text(
-                    'กดปุ่ม + เพื่อสร้าง PM Schedule ใหม่',
-                    style: TextStyle(fontSize: 12),
+                  FilledButton.icon(
+                    onPressed: _showCreatePmDialog,
+                    icon: const Icon(Icons.add),
+                    label: const Text('สร้าง PM Schedule'),
                   ),
                 ],
               ),
@@ -493,10 +504,6 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                 },
               ),
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showCreatePmDialog,
-        child: const Icon(Icons.add),
-      ),
     );
   }
 
