@@ -28,7 +28,9 @@ class _LoginScreenState extends State<LoginScreen> {
     _lineAuth = LineAuthService(Supabase.instance.client);
 
     // Listen for auth state changes (e.g., after LINE callback)
-    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
+    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((
+      data,
+    ) async {
       if (data.event == AuthChangeEvent.signedIn && mounted) {
         await AuthStateService().loadUserProfile();
         if (mounted) {

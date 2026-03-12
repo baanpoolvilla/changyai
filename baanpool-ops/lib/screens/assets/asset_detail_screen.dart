@@ -5,6 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/asset.dart';
 import '../../models/pm_schedule.dart';
+import '../../models/user.dart';
+import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/notification_service.dart';
 
@@ -510,6 +512,13 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
     };
     if (s.assignedTo != null) {
       queryParams['technicianId'] = s.assignedTo!;
+    } else {
+      // Allow caretaker to assign work order to self
+      final authState = AuthStateService();
+      if (authState.currentRole == UserRole.caretaker &&
+          authState.currentAppUser != null) {
+        queryParams['technicianId'] = authState.currentAppUser!.id;
+      }
     }
 
     final uri = Uri(path: '/work-orders/new', queryParameters: queryParams);

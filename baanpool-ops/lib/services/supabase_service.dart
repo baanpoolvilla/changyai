@@ -152,7 +152,9 @@ class SupabaseService {
     try {
       var query = _client
           .from('pm_schedules')
-          .select('*, users:assigned_to(full_name)')
+          .select(
+            '*, users:assigned_to(full_name), properties:property_id(name), assets:asset_id(name)',
+          )
           .eq('is_active', true);
       if (assetId != null) query = query.eq('asset_id', assetId);
       if (assignedTo != null) query = query.eq('assigned_to', assignedTo);
@@ -175,6 +177,14 @@ class SupabaseService {
 
   Future<void> createPmSchedule(Map<String, dynamic> data) async {
     await _client.from('pm_schedules').insert(data);
+  }
+
+  /// Create multiple PM schedules at once (batch insert)
+  Future<void> createPmSchedulesBatch(
+    List<Map<String, dynamic>> dataList,
+  ) async {
+    if (dataList.isEmpty) return;
+    await _client.from('pm_schedules').insert(dataList);
   }
 
   Future<void> updatePmSchedule(String id, Map<String, dynamic> data) async {
@@ -362,7 +372,9 @@ class SupabaseService {
   }
 
   /// Lightweight: get only recent work orders (limited) for dashboard
-  Future<List<Map<String, dynamic>>> getRecentWorkOrders({int limit = 5}) async {
+  Future<List<Map<String, dynamic>>> getRecentWorkOrders({
+    int limit = 5,
+  }) async {
     return await _client
         .from('work_orders')
         .select()

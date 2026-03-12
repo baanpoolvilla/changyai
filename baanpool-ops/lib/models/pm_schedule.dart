@@ -11,6 +11,8 @@ class PmSchedule {
   final bool isActive;
   final String? assignedTo;
   final String? assignedToName; // joined from users table
+  final String? propertyName; // joined from properties table
+  final String? assetName; // joined from assets table
   final DateTime createdAt;
 
   const PmSchedule({
@@ -25,6 +27,8 @@ class PmSchedule {
     this.isActive = true,
     this.assignedTo,
     this.assignedToName,
+    this.propertyName,
+    this.assetName,
     required this.createdAt,
   });
 
@@ -33,6 +37,18 @@ class PmSchedule {
     String? techName;
     if (json['users'] is Map) {
       techName = json['users']['full_name'] as String?;
+    }
+
+    // Handle joined property data
+    String? propName;
+    if (json['properties'] is Map) {
+      propName = json['properties']['name'] as String?;
+    }
+
+    // Handle joined asset data
+    String? aName;
+    if (json['assets'] is Map) {
+      aName = json['assets']['name'] as String?;
     }
 
     return PmSchedule(
@@ -49,6 +65,8 @@ class PmSchedule {
       isActive: json['is_active'] as bool? ?? true,
       assignedTo: json['assigned_to'] as String?,
       assignedToName: techName,
+      propertyName: propName,
+      assetName: aName,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }

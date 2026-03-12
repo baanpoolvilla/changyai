@@ -315,10 +315,13 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
         final path =
             'work-orders/complete_${DateTime.now().millisecondsSinceEpoch}_$i.$ext';
         uploadFutures.add(
-          _service.uploadFile('photos', path, bytes).then<String?>((url) => url).catchError((_) {
-            debugPrint('Upload completion image $i failed');
-            return null;
-          }),
+          _service
+              .uploadFile('photos', path, bytes)
+              .then<String?>((url) => url)
+              .catchError((_) {
+                debugPrint('Upload completion image $i failed');
+                return null;
+              }),
         );
       }
       final uploadResults = await Future.wait(uploadFutures);

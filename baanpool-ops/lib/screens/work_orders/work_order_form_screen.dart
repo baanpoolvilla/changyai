@@ -78,12 +78,13 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
         _service.getUsers(), // Get all users for assignment
       ]);
       _properties = results[0];
-      // Caretaker role can only assign technicians
+      // Caretaker role can only assign technicians + themselves
       final allUsers = results[1];
       final currentRole = AuthStateService().currentRole;
       if (currentRole == UserRole.caretaker) {
+        final currentUserId = AuthStateService().currentAppUser?.id;
         _technicians = allUsers
-            .where((u) => u['role'] == 'technician')
+            .where((u) => u['role'] == 'technician' || u['id'] == currentUserId)
             .toList();
       } else {
         _technicians = allUsers;
@@ -119,10 +120,13 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
         final path =
             'work-orders/${DateTime.now().millisecondsSinceEpoch}_$i.$ext';
         uploadFutures.add(
-          _service.uploadFile('photos', path, bytes).then<String?>((url) => url).catchError((_) {
-            debugPrint('Upload image $i failed');
-            return null;
-          }),
+          _service
+              .uploadFile('photos', path, bytes)
+              .then<String?>((url) => url)
+              .catchError((_) {
+                debugPrint('Upload image $i failed');
+                return null;
+              }),
         );
       }
       final uploadResults = await Future.wait(uploadFutures);

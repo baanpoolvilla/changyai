@@ -44,9 +44,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
         _service.getProperties(),
       ]);
 
-      _allExpenses = results[0]
-          .map((e) => Expense.fromJson(e))
-          .toList();
+      _allExpenses = results[0].map((e) => Expense.fromJson(e)).toList();
       _properties = results[1];
 
       _computeReport();
