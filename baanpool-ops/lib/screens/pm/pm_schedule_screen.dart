@@ -16,6 +16,8 @@ class PmScheduleScreen extends StatefulWidget {
 class _PmScheduleScreenState extends State<PmScheduleScreen> {
   final _service = SupabaseService(Supabase.instance.client);
   List<PmSchedule> _schedules = [];
+  Map<String, String> _propertyNames = {}; // property_id → name
+  Map<String, String> _assetNames = {}; // asset_id → name
   bool _loading = true;
 
   @override
@@ -27,8 +29,36 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final data = await _service.getPmSchedules();
+      final results = await Future.wait([
+        _service.getPmSchedules(),
+        _service.getPropertyNamesOnly(),
+      ]);
+      final data = results[0] as List<Map<String, dynamic>>;
+      final props = results[1] as List<Map<String, dynamic>>;
+
+      _propertyNames = {
+        for (final p in props) p['id'] as String: p['name'] as String,
+      };
+
       _schedules = data.map((e) => PmSchedule.fromJson(e)).toList();
+
+      // Load asset names for all unique asset_ids
+      final assetIds = _schedules
+          .where((s) => s.assetId != null)
+          .map((s) => s.assetId!)
+          .toSet()
+          .toList();
+      if (assetIds.isNotEmpty) {
+        try {
+          final assetData = await Supabase.instance.client
+              .from('assets')
+              .select('id, name')
+              .inFilter('id', assetIds);
+          _assetNames = {
+            for (final a in assetData) a['id'] as String: a['name'] as String,
+          };
+        } catch (_) {}
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -459,17 +489,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Preventive Maintenance'),
-        actions: [
-          FilledButton.tonalIcon(
-            onPressed: _showCreatePmDialog,
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('สร้าง PM'),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Preventive Maintenance')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _schedules.isEmpty
@@ -484,19 +504,13 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                   ),
                   const SizedBox(height: 16),
                   const Text('ยังไม่มี PM Schedule'),
-                  const SizedBox(height: 8),
-                  FilledButton.icon(
-                    onPressed: _showCreatePmDialog,
-                    icon: const Icon(Icons.add),
-                    label: const Text('สร้าง PM Schedule'),
-                  ),
                 ],
               ),
             )
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView.builder(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
                 itemCount: _schedules.length,
                 itemBuilder: (context, index) {
                   final s = _schedules[index];
@@ -504,6 +518,11 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                 },
               ),
             ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showCreatePmDialog,
+        icon: const Icon(Icons.add),
+        label: const Text('สร้าง PM'),
+      ),
     );
   }
 
@@ -523,6 +542,11 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
       statusText = 'อีก $daysUntilDue วัน';
     }
 
+    // Use local maps as fallback when join doesn't return data
+    final propertyName = s.propertyName ?? _propertyNames[s.propertyId];
+    final assetName =
+        s.assetName ?? (s.assetId != null ? _assetNames[s.assetId!] : null);
+
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -541,7 +565,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(s.title, style: theme.textTheme.titleSmall),
-                        if (s.propertyName != null)
+                        if (propertyName != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 2),
                             child: Row(
@@ -552,10 +576,13 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                                   color: theme.colorScheme.outline,
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
-                                  s.propertyName!,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.outline,
+                                Flexible(
+                                  child: Text(
+                                    propertyName,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.outline,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
@@ -614,7 +641,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                   ),
                   if (s.assignedToName != null)
                     _chip(Icons.person, s.assignedToName!),
-                  if (s.assetName != null) _chip(Icons.build, s.assetName!),
+                  if (assetName != null) _chip(Icons.build, assetName),
                 ],
               ),
             ],
