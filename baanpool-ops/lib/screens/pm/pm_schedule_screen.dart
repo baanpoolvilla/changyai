@@ -150,11 +150,11 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
           return d.add(const Duration(days: 14));
         case PmFrequency.monthly:
           return DateTime(d.year, d.month + 1, d.day);
-        case PmFrequency.threeMonths:
+        case PmFrequency.threeMonth:
           return DateTime(d.year, d.month + 3, d.day);
-        case PmFrequency.sixMonths:
+        case PmFrequency.sixMonth:
           return DateTime(d.year, d.month + 6, d.day);
-        case PmFrequency.yearly:
+        case PmFrequency.year:
           return DateTime(d.year + 1, d.month, d.day);
       }
     }

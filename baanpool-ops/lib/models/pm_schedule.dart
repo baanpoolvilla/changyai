@@ -91,9 +91,9 @@ enum PmFrequency {
   weekly,
   biweekly,
   monthly,
-  quarterly,
-  semiannual,
-  annual;
+  threeMonth,
+  sixMonth,
+  year;
 
   static PmFrequency fromString(String value) {
     return PmFrequency.values.firstWhere(
@@ -105,17 +105,17 @@ enum PmFrequency {
   String get displayName {
     switch (this) {
       case PmFrequency.weekly:
-        return 'รายสัปดาห์';
+        return '1 สัปดาห์';
       case PmFrequency.biweekly:
-        return 'ทุก 2 สัปดาห์';
+        return '2 สัปดาห์';
       case PmFrequency.monthly:
-        return 'รายเดือน';
-      case PmFrequency.quarterly:
-        return 'ราย 3 เดือน';
-      case PmFrequency.semiannual:
-        return 'ราย 6 เดือน';
-      case PmFrequency.annual:
-        return 'รายปี';
+        return '1 เดือน';
+      case PmFrequency.threeMonth:
+        return '3 เดือน';
+      case PmFrequency.sixMonth:
+        return '6 เดือน';
+      case PmFrequency.year:
+        return '1 ปี';
     }
   }
 }
