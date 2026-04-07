@@ -98,7 +98,6 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
   }
 
   Future<void> _showCreatePmDialog() async {
-    // Load properties, assets, and technicians in parallel
     List<Map<String, dynamic>> properties = [];
     List<Map<String, dynamic>> allAssets = [];
     List<Map<String, dynamic>> technicians = [];
@@ -130,7 +129,8 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     final titleCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     PmFrequency selectedFreq = PmFrequency.monthly;
-    DateTime nextDue = DateTime.now().add(const Duration(days: 30));
+    DateTime startDate = DateTime.now();
+
     String? selectedTechId;
     Set<String> selectedPropertyIds = {};
     Set<String> selectedAssetIds = {};
@@ -138,6 +138,26 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     bool loadingAssets = false;
     bool propertySectionExpanded = true;
     bool assetSectionExpanded = false;
+
+    // ✅ NEW: function คำนวณรอบถัดไป
+    DateTime getNextDueDate(DateTime start, PmFrequency freq) {
+      final d = DateTime(start.year, start.month, start.day);
+
+      switch (freq) {
+        case PmFrequency.weekly:
+          return d.add(const Duration(days: 7));
+        case PmFrequency.biweekly:
+          return d.add(const Duration(days: 14));
+        case PmFrequency.monthly:
+          return DateTime(d.year, d.month + 1, d.day);
+        case PmFrequency.threeMonths:
+          return DateTime(d.year, d.month + 3, d.day);
+        case PmFrequency.sixMonths:
+          return DateTime(d.year, d.month + 6, d.day);
+        case PmFrequency.yearly:
+          return DateTime(d.year + 1, d.month, d.day);
+      }
+    }
 
     final result = await showDialog<bool>(
       context: context,
@@ -152,25 +172,32 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
               });
               return;
             }
+
             setDialogState(() => loadingAssets = true);
+
             try {
               final Map<String, List<Map<String, dynamic>>> newMap = {};
               final futures = selectedPropertyIds.map(
                 (pid) => _service.getAssets(propertyId: pid),
               );
+
               final results = await Future.wait(futures);
+
               int i = 0;
               final List<Map<String, dynamic>> combined = [];
+
               for (final pid in selectedPropertyIds) {
                 newMap[pid] = results.elementAt(i);
                 combined.addAll(results.elementAt(i));
                 i++;
               }
-              // Remove asset selections that are no longer valid
+
               final validAssetIds = combined
                   .map((a) => a['id'] as String)
                   .toSet();
+
               selectedAssetIds.removeWhere((id) => !validAssetIds.contains(id));
+
               setDialogState(() {
                 allAssets = combined;
                 propertyAssetsMap = newMap;
@@ -183,18 +210,17 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
             }
           }
 
-          // Group asset display by property
           List<Widget> buildAssetCheckboxes() {
             final widgets = <Widget>[];
+
             for (final pid in selectedPropertyIds) {
               final propAssets = propertyAssetsMap[pid] ?? [];
               if (propAssets.isEmpty) continue;
-              final propName =
-                  properties.firstWhere(
-                        (p) => p['id'] == pid,
-                        orElse: () => {'name': pid},
-                      )['name']
-                      as String;
+
+              final propName = properties.firstWhere(
+                (p) => p['id'] == pid,
+                orElse: () => {'name': pid},
+              )['name'];
 
               widgets.add(
                 Padding(
@@ -209,22 +235,15 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                 ),
               );
 
-              // Select all for this property
               final allIds = propAssets.map((a) => a['id'] as String).toSet();
               final allSelected = allIds.every(
                 (id) => selectedAssetIds.contains(id),
               );
+
               widgets.add(
                 CheckboxListTile(
                   dense: true,
-                  visualDensity: VisualDensity.compact,
-                  title: Text(
-                    'เลือกทั้งหมด (${propAssets.length})',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
+                  title: Text('เลือกทั้งหมด (${propAssets.length})'),
                   value: allSelected,
                   onChanged: (v) {
                     setDialogState(() {
@@ -240,12 +259,10 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
 
               for (final asset in propAssets) {
                 final aid = asset['id'] as String;
-                final aName = asset['name'] as String;
                 widgets.add(
                   CheckboxListTile(
                     dense: true,
-                    visualDensity: VisualDensity.compact,
-                    title: Text(aName, style: const TextStyle(fontSize: 13)),
+                    title: Text(asset['name']),
                     value: selectedAssetIds.contains(aid),
                     onChanged: (v) {
                       setDialogState(() {
@@ -260,160 +277,103 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                 );
               }
             }
+
             return widgets;
           }
 
+          final next = getNextDueDate(startDate, selectedFreq);
+
           return AlertDialog(
             title: const Text('สร้าง PM Schedule'),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: titleCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'ชื่องาน PM *',
-                      ),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: titleCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'ชื่องาน PM *',
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: descCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'รายละเอียด',
-                      ),
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<PmFrequency>(
-                      value: selectedFreq,
-                      decoration: const InputDecoration(labelText: 'ความถี่'),
-                      items: PmFrequency.values
-                          .map(
-                            (f) => DropdownMenuItem(
-                              value: f,
-                              child: Text(f.displayName),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) {
-                        if (v != null) setDialogState(() => selectedFreq = v);
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('วันครบกำหนดถัดไป'),
-                      subtitle: Text(
-                        '${nextDue.day}/${nextDue.month}/${nextDue.year}',
-                      ),
-                      trailing: const Icon(Icons.calendar_today),
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: ctx,
-                          initialDate: nextDue,
-                          firstDate: DateTime.now(),
-                          lastDate: DateTime.now().add(
-                            const Duration(days: 365 * 5),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descCtrl,
+                    decoration: const InputDecoration(labelText: 'รายละเอียด'),
+                  ),
+                  const SizedBox(height: 12),
+
+                  /// ความถี่
+                  DropdownButtonFormField<PmFrequency>(
+                    value: selectedFreq,
+                    decoration: const InputDecoration(labelText: 'ความถี่'),
+                    items: PmFrequency.values
+                        .map(
+                          (f) => DropdownMenuItem(
+                            value: f,
+                            child: Text(f.displayName),
                           ),
-                        );
-                        if (picked != null)
-                          setDialogState(() => nextDue = picked);
-                      },
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) {
+                        setDialogState(() => selectedFreq = v);
+                      }
+                    },
+                  ),
+
+                  /// ✅ Preview
+                  const SizedBox(height: 8),
+                  Text(
+                    'รอบถัดไป: ${next.day}/${next.month}/${next.year}',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  /// วันที่เริ่มต้น
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('วันเริ่มต้น'),
+                    subtitle: Text(
+                      '${startDate.day}/${startDate.month}/${startDate.year}',
                     ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String?>(
-                      value: selectedTechId,
-                      decoration: const InputDecoration(
-                        labelText: 'มอบหมายช่าง',
+                    trailing: const Icon(Icons.calendar_today),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: ctx,
+                        initialDate: startDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(
+                          const Duration(days: 365 * 5),
+                        ),
+                      );
+
+                      if (picked != null) {
+                        setDialogState(() => startDate = picked);
+                      }
+                    },
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  DropdownButtonFormField<String?>(
+                    value: selectedTechId,
+                    decoration: const InputDecoration(labelText: 'มอบหมายช่าง'),
+                    items: [
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('ไม่ระบุ'),
                       ),
-                      items: [
-                        const DropdownMenuItem(
-                          value: null,
-                          child: Text('ไม่ระบุ'),
+                      ...technicians.map(
+                        (t) => DropdownMenuItem(
+                          value: t['id'],
+                          child: Text(t['full_name'] ?? t['email']),
                         ),
-                        ...technicians.map(
-                          (t) => DropdownMenuItem(
-                            value: t['id'] as String,
-                            child: Text(
-                              t['full_name'] as String? ?? t['email'] as String,
-                            ),
-                          ),
-                        ),
-                      ],
-                      onChanged: (v) =>
-                          setDialogState(() => selectedTechId = v),
-                    ),
-                    const SizedBox(height: 16),
-                    const Divider(),
-                    ExpansionTile(
-                      initiallyExpanded: propertySectionExpanded,
-                      tilePadding: EdgeInsets.zero,
-                      title: Text(
-                        'เลือกบ้าน${selectedPropertyIds.isNotEmpty ? ' (${selectedPropertyIds.length})' : ''}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      onExpansionChanged: (v) {
-                        setDialogState(() => propertySectionExpanded = v);
-                      },
-                      children: properties.map((p) {
-                        final pid = p['id'] as String;
-                        final pName = p['name'] as String;
-                        return CheckboxListTile(
-                          dense: true,
-                          visualDensity: VisualDensity.compact,
-                          title: Text(
-                            pName,
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                          value: selectedPropertyIds.contains(pid),
-                          onChanged: (v) {
-                            setDialogState(() {
-                              if (v == true) {
-                                selectedPropertyIds.add(pid);
-                              } else {
-                                selectedPropertyIds.remove(pid);
-                              }
-                            });
-                            loadAssetsForProperties();
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    if (selectedPropertyIds.isNotEmpty) ...[
-                      ExpansionTile(
-                        initiallyExpanded: assetSectionExpanded,
-                        tilePadding: EdgeInsets.zero,
-                        title: Text(
-                          'เลือกอุปกรณ์${selectedAssetIds.isNotEmpty ? ' (${selectedAssetIds.length})' : ''}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        onExpansionChanged: (v) {
-                          setDialogState(() => assetSectionExpanded = v);
-                        },
-                        children: [
-                          if (loadingAssets)
-                            const Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Center(child: CircularProgressIndicator()),
-                            )
-                          else if (allAssets.isEmpty)
-                            const Padding(
-                              padding: EdgeInsets.all(8),
-                              child: Text(
-                                'ไม่พบอุปกรณ์ในบ้านที่เลือก',
-                                style: TextStyle(fontSize: 13),
-                              ),
-                            )
-                          else
-                            ...buildAssetCheckboxes(),
-                        ],
                       ),
                     ],
-                  ],
-                ),
+                    onChanged: (v) => setDialogState(() => selectedTechId = v),
+                  ),
+                ],
               ),
             ),
             actions: [
@@ -426,22 +386,6 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                   if (titleCtrl.text.trim().isEmpty) {
                     ScaffoldMessenger.of(ctx).showSnackBar(
                       const SnackBar(content: Text('กรุณากรอกชื่องาน PM')),
-                    );
-                    return;
-                  }
-                  if (selectedPropertyIds.isEmpty) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      const SnackBar(
-                        content: Text('กรุณาเลือกบ้านอย่างน้อย 1 หลัง'),
-                      ),
-                    );
-                    return;
-                  }
-                  if (selectedAssetIds.isEmpty) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      const SnackBar(
-                        content: Text('กรุณาเลือกอุปกรณ์อย่างน้อย 1 รายการ'),
-                      ),
                     );
                     return;
                   }
@@ -458,15 +402,15 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     if (result != true) return;
 
     try {
-      // Build batch data: one PM schedule per selected asset
+      final nextDue = getNextDueDate(startDate, selectedFreq);
+
       final batchData = <Map<String, dynamic>>[];
+
       for (final assetId in selectedAssetIds) {
-        // Find the propertyId for this asset
         final asset = allAssets.firstWhere((a) => a['id'] == assetId);
-        final propertyId = asset['property_id'] as String;
 
         batchData.add({
-          'property_id': propertyId,
+          'property_id': asset['property_id'],
           'asset_id': assetId,
           'title': titleCtrl.text.trim(),
           'description': descCtrl.text.trim().isEmpty
@@ -490,6 +434,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
           ),
         );
       }
+
       _load();
     } catch (e) {
       if (mounted) {
