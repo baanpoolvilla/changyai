@@ -246,7 +246,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
 
     final titleCtrl = TextEditingController(text: _asset!.name);
     final descCtrl = TextEditingController();
-    PmFrequency selectedFreq = PmFrequency.monthly;
+    PmFrequency selectedFreq = PmFrequency.month1;
     DateTime nextDue = DateTime.now().add(const Duration(days: 30));
     String? selectedTechId;
 

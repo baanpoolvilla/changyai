@@ -88,34 +88,71 @@ class PmSchedule {
 }
 
 enum PmFrequency {
-  weekly,
-  biweekly,
-  monthly,
-  quarterly,
-  semiannual,
-  annual;
+  week1,
+  week2,
+  week3,
+  month1,
+  month2,
+  month3,
+  month4,
+  month5,
+  month6,
+  month7,
+  month8,
+  month9,
+  month10,
+  month11,
+  month12;
 
   static PmFrequency fromString(String value) {
+    // backward compat for old DB values
+    const legacyMap = {
+      'weekly': 'week1',
+      'biweekly': 'week2',
+      'monthly': 'month1',
+      'quarterly': 'month3',
+      'semiannual': 'month6',
+      'annual': 'month12',
+    };
+    final mapped = legacyMap[value] ?? value;
     return PmFrequency.values.firstWhere(
-      (e) => e.name == value,
-      orElse: () => PmFrequency.monthly,
+      (e) => e.name == mapped,
+      orElse: () => PmFrequency.month1,
     );
   }
 
   String get displayName {
     switch (this) {
-      case PmFrequency.weekly:
-        return 'รายสัปดาห์';
-      case PmFrequency.biweekly:
-        return 'ทุก 2 สัปดาห์';
-      case PmFrequency.monthly:
-        return 'รายเดือน';
-      case PmFrequency.quarterly:
-        return 'ราย 3 เดือน';
-      case PmFrequency.semiannual:
-        return 'ราย 6 เดือน';
-      case PmFrequency.annual:
-        return 'รายปี';
+      case PmFrequency.week1:
+        return '1 สัปดาห์';
+      case PmFrequency.week2:
+        return '2 สัปดาห์';
+      case PmFrequency.week3:
+        return '3 สัปดาห์';
+      case PmFrequency.month1:
+        return '1 เดือน';
+      case PmFrequency.month2:
+        return '2 เดือน';
+      case PmFrequency.month3:
+        return '3 เดือน';
+      case PmFrequency.month4:
+        return '4 เดือน';
+      case PmFrequency.month5:
+        return '5 เดือน';
+      case PmFrequency.month6:
+        return '6 เดือน';
+      case PmFrequency.month7:
+        return '7 เดือน';
+      case PmFrequency.month8:
+        return '8 เดือน';
+      case PmFrequency.month9:
+        return '9 เดือน';
+      case PmFrequency.month10:
+        return '10 เดือน';
+      case PmFrequency.month11:
+        return '11 เดือน';
+      case PmFrequency.month12:
+        return '12 เดือน';
     }
   }
 }

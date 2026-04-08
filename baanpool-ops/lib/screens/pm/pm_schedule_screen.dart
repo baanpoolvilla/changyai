@@ -129,7 +129,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
 
     final titleCtrl = TextEditingController();
     final descCtrl = TextEditingController();
-    PmFrequency selectedFreq = PmFrequency.monthly;
+    PmFrequency selectedFreq = PmFrequency.month1;
     DateTime nextDue = DateTime.now().add(const Duration(days: 30));
     String? selectedTechId;
     Set<String> selectedPropertyIds = {};

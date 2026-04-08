@@ -221,22 +221,25 @@ class SupabaseService {
 
   /// Calculate next due date based on PM frequency
   DateTime _calcNextDueDate(DateTime from, String frequency) {
-    switch (frequency) {
-      case 'weekly':
-        return from.add(const Duration(days: 7));
-      case 'biweekly':
-        return from.add(const Duration(days: 14));
-      case 'monthly':
-        return DateTime(from.year, from.month + 1, from.day);
-      case 'quarterly':
-        return DateTime(from.year, from.month + 3, from.day);
-      case 'semiannual':
-        return DateTime(from.year, from.month + 6, from.day);
-      case 'annual':
-        return DateTime(from.year + 1, from.month, from.day);
-      default:
-        return DateTime(from.year, from.month + 1, from.day);
+    // backward compat for old DB values
+    const legacyMap = {
+      'weekly': 'week1',
+      'biweekly': 'week2',
+      'monthly': 'month1',
+      'quarterly': 'month3',
+      'semiannual': 'month6',
+      'annual': 'month12',
+    };
+    final f = legacyMap[frequency] ?? frequency;
+    if (f == 'week1') return from.add(const Duration(days: 7));
+    if (f == 'week2') return from.add(const Duration(days: 14));
+    if (f == 'week3') return from.add(const Duration(days: 21));
+    final monthMatch = RegExp(r'^month(\d+)$').firstMatch(f);
+    if (monthMatch != null) {
+      final months = int.parse(monthMatch.group(1)!);
+      return DateTime(from.year, from.month + months, from.day);
     }
+    return DateTime(from.year, from.month + 1, from.day);
   }
 
   /// Find the PM schedule ID for an asset (first active schedule)
