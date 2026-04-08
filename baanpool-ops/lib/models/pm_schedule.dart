@@ -76,7 +76,7 @@ class PmSchedule {
     'asset_id': assetId,
     'title': title,
     'description': description,
-    'frequency': frequency.name,
+    'frequency': frequency.toDbValue,
     'next_due_date': nextDueDate.toIso8601String(),
     'last_completed_date': lastCompletedDate?.toIso8601String(),
     'is_active': isActive,
@@ -109,7 +109,9 @@ enum PmFrequency {
     const legacyMap = {
       'weekly': 'week1',
       'biweekly': 'week2',
+      'triweekly': 'week3',
       'monthly': 'month1',
+      'bimonthly': 'month2',
       'quarterly': 'month3',
       'semiannual': 'month6',
       'annual': 'month12',
@@ -119,6 +121,42 @@ enum PmFrequency {
       (e) => e.name == mapped,
       orElse: () => PmFrequency.month1,
     );
+  }
+
+  /// Map enum back to the DB-accepted value
+  String get toDbValue {
+    switch (this) {
+      case PmFrequency.week1:
+        return 'weekly';
+      case PmFrequency.week2:
+        return 'biweekly';
+      case PmFrequency.week3:
+        return 'triweekly';
+      case PmFrequency.month1:
+        return 'monthly';
+      case PmFrequency.month2:
+        return 'bimonthly';
+      case PmFrequency.month3:
+        return 'quarterly';
+      case PmFrequency.month4:
+        return 'month4';
+      case PmFrequency.month5:
+        return 'month5';
+      case PmFrequency.month6:
+        return 'semiannual';
+      case PmFrequency.month7:
+        return 'month7';
+      case PmFrequency.month8:
+        return 'month8';
+      case PmFrequency.month9:
+        return 'month9';
+      case PmFrequency.month10:
+        return 'month10';
+      case PmFrequency.month11:
+        return 'month11';
+      case PmFrequency.month12:
+        return 'annual';
+    }
   }
 
   String get displayName {

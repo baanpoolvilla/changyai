@@ -361,21 +361,24 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                       children: properties.map((p) {
                         final pid = p['id'] as String;
                         final pName = p['name'] as String;
-                        return CheckboxListTile(
+                        return RadioListTile<String>(
                           dense: true,
                           visualDensity: VisualDensity.compact,
                           title: Text(
                             pName,
                             style: const TextStyle(fontSize: 13),
                           ),
-                          value: selectedPropertyIds.contains(pid),
+                          value: pid,
+                          groupValue: selectedPropertyIds.isNotEmpty
+                              ? selectedPropertyIds.first
+                              : null,
                           onChanged: (v) {
                             setDialogState(() {
-                              if (v == true) {
-                                selectedPropertyIds.add(pid);
-                              } else {
-                                selectedPropertyIds.remove(pid);
+                              selectedPropertyIds.clear();
+                              if (v != null) {
+                                selectedPropertyIds.add(v);
                               }
+                              propertySectionExpanded = false;
                             });
                             loadAssetsForProperties();
                           },
@@ -472,7 +475,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
           'description': descCtrl.text.trim().isEmpty
               ? null
               : descCtrl.text.trim(),
-          'frequency': selectedFreq.name,
+          'frequency': selectedFreq.toDbValue,
           'next_due_date': nextDue.toIso8601String().split('T').first,
           'assigned_to': selectedTechId,
         });

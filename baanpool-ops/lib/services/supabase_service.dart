@@ -221,13 +221,22 @@ class SupabaseService {
 
   /// Calculate next due date based on PM frequency
   DateTime _calcNextDueDate(DateTime from, String frequency) {
-    // backward compat for old DB values
+    // Map DB values to internal enum-style names
     const legacyMap = {
       'weekly': 'week1',
       'biweekly': 'week2',
+      'triweekly': 'week3',
       'monthly': 'month1',
+      'bimonthly': 'month2',
       'quarterly': 'month3',
+      'month4': 'month4',
+      'month5': 'month5',
       'semiannual': 'month6',
+      'month7': 'month7',
+      'month8': 'month8',
+      'month9': 'month9',
+      'month10': 'month10',
+      'month11': 'month11',
       'annual': 'month12',
     };
     final f = legacyMap[frequency] ?? frequency;
