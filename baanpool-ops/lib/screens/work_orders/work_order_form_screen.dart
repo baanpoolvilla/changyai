@@ -78,13 +78,12 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
         _service.getUsers(), // Get all users for assignment
       ]);
       _properties = results[0];
-      // Caretaker role can only assign technicians + themselves
+      // Caretaker role can assign to technicians + all caretakers (including themselves)
       final allUsers = results[1];
       final currentRole = AuthStateService().currentRole;
       if (currentRole == UserRole.caretaker) {
-        final currentUserId = AuthStateService().currentAppUser?.id;
         _technicians = allUsers
-            .where((u) => u['role'] == 'technician' || u['id'] == currentUserId)
+            .where((u) => u['role'] == 'technician' || u['role'] == 'caretaker')
             .toList();
       } else {
         _technicians = allUsers;

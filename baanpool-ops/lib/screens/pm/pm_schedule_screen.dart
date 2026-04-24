@@ -570,7 +570,10 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: s.assetId != null
-            ? () => context.push('/assets/${s.assetId}')
+            ? () async {
+                await context.push('/assets/${s.assetId}');
+                _load(); // Reload when returning from asset detail
+              }
             : null,
         child: Padding(
           padding: const EdgeInsets.all(12),

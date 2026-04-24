@@ -95,8 +95,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: const Icon(Icons.logout),
             tooltip: 'ออกจากระบบ',
             onPressed: () async {
-              await AuthStateService().signOut();
-              if (context.mounted) context.go('/login');
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('ยืนยันการออกจากระบบ'),
+                  content: const Text('คุณต้องการออกจากระบบหรือไม่?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('ยกเลิก'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('ออกจากระบบ'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                await AuthStateService().signOut();
+                if (context.mounted) context.go('/login');
+              }
             },
           ),
         ],
