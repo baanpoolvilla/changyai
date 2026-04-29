@@ -112,7 +112,10 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
       final allUsers = results[1];
       final currentRole = AuthStateService().currentRole;
       if (currentRole == UserRole.caretaker) {
-        technicians = allUsers.where((u) => u['role'] == 'technician').toList();
+        // Caretaker can assign to technicians + all caretakers (including themselves)
+        technicians = allUsers
+            .where((u) => u['role'] == 'technician' || u['role'] == 'caretaker')
+            .toList();
       } else {
         technicians = allUsers;
       }
