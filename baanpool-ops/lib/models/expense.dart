@@ -1,3 +1,5 @@
+import '../utils/thai_datetime.dart';
+
 /// Expense model — maps to `expenses` table in Supabase
 class Expense {
   final String id;
@@ -13,6 +15,7 @@ class Expense {
   final ExpensePaidBy paidBy; // company or owner
   final DateTime expenseDate;
   final DateTime createdAt;
+  final bool isNoExpense;
 
   const Expense({
     required this.id,
@@ -28,6 +31,7 @@ class Expense {
     this.paidBy = ExpensePaidBy.company,
     required this.expenseDate,
     required this.createdAt,
+    this.isNoExpense = false,
   });
 
   factory Expense.fromJson(Map<String, dynamic> json) {
@@ -44,7 +48,8 @@ class Expense {
       costType: ExpenseCostType.fromString(json['cost_type'] as String?),
       paidBy: ExpensePaidBy.fromString(json['paid_by'] as String?),
       expenseDate: DateTime.parse(json['expense_date'] as String),
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: parseServerTimestampToThai(json['created_at'] as String),
+      isNoExpense: json['is_no_expense'] as bool? ?? false,
     );
   }
 
@@ -60,6 +65,7 @@ class Expense {
     'cost_type': costType.value,
     'paid_by': paidBy.value,
     'expense_date': expenseDate.toIso8601String(),
+    'is_no_expense': isNoExpense,
   };
 }
 

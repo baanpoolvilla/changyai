@@ -1,3 +1,5 @@
+import '../utils/thai_datetime.dart';
+
 /// PM Schedule model — maps to `pm_schedules` table in Supabase
 class PmSchedule {
   final String id;
@@ -67,7 +69,7 @@ class PmSchedule {
       assignedToName: techName,
       propertyName: propName,
       assetName: aName,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: parseServerTimestampToThai(json['created_at'] as String),
     );
   }
 
@@ -84,7 +86,7 @@ class PmSchedule {
   };
 
   bool get isDueSoon =>
-      nextDueDate.difference(DateTime.now()).inDays <= 7 && isActive;
+      nextDueDate.difference(thaiNow()).inDays <= 7 && isActive;
 }
 
 enum PmFrequency {

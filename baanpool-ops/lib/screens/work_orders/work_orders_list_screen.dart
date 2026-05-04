@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/work_order.dart';
 import '../../services/supabase_service.dart';
 import '../../services/auth_state_service.dart';
+import '../../utils/thai_datetime.dart';
 
 class WorkOrdersListScreen extends StatefulWidget {
   const WorkOrdersListScreen({super.key});
@@ -326,7 +327,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen> {
                     ],
                   ),
                   Text(
-                    '${wo.createdAt.day}/${wo.createdAt.month}/${wo.createdAt.year}',
+                    formatThaiDate(wo.createdAt),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.outline,
                     ),

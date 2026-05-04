@@ -7,6 +7,7 @@ import '../../models/user.dart';
 import '../../models/work_order.dart';
 import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/thai_datetime.dart';
 
 class WorkOrderDetailScreen extends StatefulWidget {
   final String workOrderId;
@@ -435,7 +436,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                     _infoRow(
                       Icons.calendar_today,
                       'สร้างเมื่อ',
-                      '${wo.createdAt.day}/${wo.createdAt.month}/${wo.createdAt.year} ${wo.createdAt.hour.toString().padLeft(2, '0')}:${wo.createdAt.minute.toString().padLeft(2, '0')}',
+                      formatThaiDateTime(wo.createdAt),
                     ),
 
                     // Due date

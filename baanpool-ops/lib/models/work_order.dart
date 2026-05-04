@@ -1,3 +1,5 @@
+import '../utils/thai_datetime.dart';
+
 /// WorkOrder model — maps to `work_orders` table in Supabase
 class WorkOrder {
   final String id;
@@ -39,17 +41,17 @@ class WorkOrder {
       status: WorkOrderStatus.fromString(json['status'] as String),
       priority: WorkOrderPriority.fromString(json['priority'] as String),
       dueDate: json['due_date'] != null
-          ? DateTime.parse(json['due_date'] as String)
+          ? parseServerTimestampToThai(json['due_date'] as String)
           : null,
       completedAt: json['completed_at'] != null
-          ? DateTime.parse(json['completed_at'] as String)
+          ? parseServerTimestampToThai(json['completed_at'] as String)
           : null,
       photoUrls:
           (json['photo_urls'] as List<dynamic>?)
               ?.map((e) => e as String)
               .toList() ??
           [],
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: parseServerTimestampToThai(json['created_at'] as String),
     );
   }
 
@@ -68,7 +70,7 @@ class WorkOrder {
 
   bool get isOverdue =>
       dueDate != null &&
-      dueDate!.isBefore(DateTime.now()) &&
+      dueDate!.isBefore(thaiNow()) &&
       status != WorkOrderStatus.completed;
 }
 

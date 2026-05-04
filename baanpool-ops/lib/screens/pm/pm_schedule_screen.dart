@@ -5,6 +5,7 @@ import '../../models/pm_schedule.dart';
 import '../../models/user.dart';
 import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/thai_datetime.dart';
 
 class PmScheduleScreen extends StatefulWidget {
   const PmScheduleScreen({super.key});
@@ -550,7 +551,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
 
   Widget _buildScheduleCard(PmSchedule s) {
     final theme = Theme.of(context);
-    final daysUntilDue = s.nextDueDate.difference(DateTime.now()).inDays;
+    final daysUntilDue = s.nextDueDate.difference(thaiNow()).inDays;
     final isOverdue = daysUntilDue < 0;
     final isDueSoon = daysUntilDue <= 7 && daysUntilDue >= 0;
 
@@ -662,8 +663,9 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                   _chip(Icons.repeat, s.frequency.displayName),
                   _chip(
                     Icons.calendar_today,
-                    '${s.nextDueDate.day}/${s.nextDueDate.month}/${s.nextDueDate.year}',
+                    formatThaiDate(s.nextDueDate),
                   ),
+                  _chip(Icons.schedule, 'สร้างเมื่อ ${formatThaiDateTime(s.createdAt)}'),
                   if (s.assignedToName != null)
                     _chip(Icons.person, s.assignedToName!),
                   if (assetName != null) _chip(Icons.build, assetName),

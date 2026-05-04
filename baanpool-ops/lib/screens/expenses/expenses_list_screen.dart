@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/expense.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/thai_datetime.dart';
 import '../../utils/csv_downloader.dart'
     if (dart.library.html) '../../utils/csv_downloader_web.dart';
 
@@ -187,8 +188,10 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
     for (final entry in _expensesByProperty.entries) {
       final propName = _getPropertyName(entry.key);
       for (final e in entry.value) {
-        final desc = e.description ?? _categoryLabel(e.category);
-        final cat = _categoryLabel(e.category);
+        final desc = e.isNoExpense
+            ? 'ไม่มีค่าใช้จ่าย'
+            : (e.description ?? _categoryLabel(e.category));
+        final cat = e.isNoExpense ? 'ไม่มีค่าใช้จ่าย' : _categoryLabel(e.category);
         final costTypeLabel = e.costType.displayName;
         final paidByLabel = e.paidBy.displayName;
         final ref = e.workOrderId != null
@@ -431,6 +434,7 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
     // Group by category
     final Map<String, double> categoryTotals = {};
     for (final e in expenses) {
+      if (e.isNoExpense) continue;
       final cat = e.category ?? 'other';
       categoryTotals[cat] = (categoryTotals[cat] ?? 0) + e.amount;
     }
@@ -485,18 +489,21 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
             (e) => ListTile(
               dense: true,
               leading: Icon(
-                _categoryIcon(e.category),
+                e.isNoExpense ? Icons.verified_outlined : _categoryIcon(e.category),
                 size: 20,
-                color: theme.colorScheme.outline,
+                color: e.isNoExpense ? Colors.green : theme.colorScheme.outline,
               ),
               title: Text(
-                e.description ?? _categoryLabel(e.category),
+                e.isNoExpense
+                    ? 'ไม่มีค่าใช้จ่าย'
+                    : (e.description ?? _categoryLabel(e.category)),
                 style: theme.textTheme.bodyMedium,
               ),
               subtitle: Text(
-                '${_categoryLabel(e.category)} • ${e.expenseDate.day}/${e.expenseDate.month}/${e.expenseDate.year}'
+                '${e.isNoExpense ? 'ไม่มีค่าใช้จ่าย' : _categoryLabel(e.category)} • ${formatThaiDate(e.expenseDate)}'
                 ' • ${e.costType.displayName}'
-                ' • ${e.paidBy.displayName}',
+                ' • ${e.paidBy.displayName}'
+                ' • บันทึกเมื่อ ${formatThaiDateTime(e.createdAt)}',
                 style: theme.textTheme.bodySmall,
               ),
               trailing: Column(
@@ -504,9 +511,10 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    _formatAmount(e.amount),
+                    e.isNoExpense ? 'ไม่มีค่าใช้จ่าย' : _formatAmount(e.amount),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: e.isNoExpense ? Colors.green : null,
                     ),
                   ),
                   Container(

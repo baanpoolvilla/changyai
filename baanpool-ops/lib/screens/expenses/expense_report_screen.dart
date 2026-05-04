@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/expense.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/thai_datetime.dart';
 
 class ExpenseReportScreen extends StatefulWidget {
   const ExpenseReportScreen({super.key});
@@ -295,6 +296,7 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
     // Group by category
     final Map<String, double> categoryTotals = {};
     for (final e in expenses) {
+      if (e.isNoExpense) continue;
       final cat = e.category ?? 'other';
       categoryTotals[cat] = (categoryTotals[cat] ?? 0) + e.amount;
     }
@@ -349,22 +351,25 @@ class _ExpenseReportScreenState extends State<ExpenseReportScreen> {
             (e) => ListTile(
               dense: true,
               leading: Icon(
-                _categoryIcon(e.category),
+                e.isNoExpense ? Icons.verified_outlined : _categoryIcon(e.category),
                 size: 20,
-                color: theme.colorScheme.outline,
+                color: e.isNoExpense ? Colors.green : theme.colorScheme.outline,
               ),
               title: Text(
-                e.description ?? _categoryLabel(e.category),
+                e.isNoExpense
+                    ? 'ไม่มีค่าใช้จ่าย'
+                    : (e.description ?? _categoryLabel(e.category)),
                 style: theme.textTheme.bodyMedium,
               ),
               subtitle: Text(
-                '${e.expenseDate.day}/${e.expenseDate.month}/${e.expenseDate.year}',
+                '${formatThaiDate(e.expenseDate)} • บันทึกเมื่อ ${formatThaiDateTime(e.createdAt)}',
                 style: theme.textTheme.bodySmall,
               ),
               trailing: Text(
-                _formatAmount(e.amount),
+                e.isNoExpense ? 'ไม่มีค่าใช้จ่าย' : _formatAmount(e.amount),
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.bold,
+                  color: e.isNoExpense ? Colors.green : null,
                 ),
               ),
             ),

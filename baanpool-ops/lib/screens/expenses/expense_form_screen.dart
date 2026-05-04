@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/expense.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/thai_datetime.dart';
 
 class ExpenseFormScreen extends StatefulWidget {
   final String? workOrderId;
@@ -99,7 +100,11 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+    await _saveExpense();
+  }
+
+  Future<void> _saveExpense({bool isNoExpense = false}) async {
+    if (!isNoExpense && !_formKey.currentState!.validate()) return;
 
     // Validate that we have a reference (work order or PM)
     if (_costType == ExpenseCostType.workOrder &&
@@ -120,9 +125,9 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     try {
       // Upload receipt image if selected
       String? receiptUrl;
-      if (_receiptBytes != null && _receiptImage != null) {
+      if (!isNoExpense && _receiptBytes != null && _receiptImage != null) {
         final ext = _receiptImage!.name.split('.').last;
-        final path = 'receipts/${DateTime.now().millisecondsSinceEpoch}.$ext';
+        final path = 'receipts/${thaiNow().millisecondsSinceEpoch}.$ext';
         try {
           receiptUrl = await _service.uploadFile(
             'photos',
@@ -154,20 +159,23 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         if (_selectedPmScheduleId != null)
           'pm_schedule_id': _selectedPmScheduleId,
         'property_id': propertyId,
-        'amount': double.parse(_amountController.text.trim()),
+        'amount': isNoExpense ? 0 : double.parse(_amountController.text.trim()),
         'description': _descriptionController.text.trim().isEmpty
-            ? null
+            ? (isNoExpense ? 'ไม่มีค่าใช้จ่าย' : null)
             : _descriptionController.text.trim(),
         'cost_type': _costType.value,
         'paid_by': _paidBy.value,
-        'expense_date': DateTime.now().toIso8601String().split('T').first,
+        'expense_date': thaiDateForDb(),
+        'is_no_expense': isNoExpense,
         if (receiptUrl != null) 'receipt_url': receiptUrl,
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('บันทึกค่าใช้จ่ายสำเร็จ'),
+          SnackBar(
+            content: Text(
+              isNoExpense ? 'บันทึกว่าไม่มีค่าใช้จ่ายสำเร็จ' : 'บันทึกค่าใช้จ่ายสำเร็จ',
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -370,7 +378,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                       const SizedBox(height: 12),
                     ],
                     OutlinedButton.icon(
-                      onPressed: _pickReceipt,
+                      onPressed: _saving ? null : _pickReceipt,
                       icon: const Icon(Icons.receipt),
                       label: Text(
                         _receiptBytes == null
@@ -380,16 +388,33 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Submit
-                    FilledButton(
-                      onPressed: _saving ? null : _save,
-                      child: _saving
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('บันทึกค่าใช้จ่าย'),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _saving
+                                ? null
+                                : () => _saveExpense(isNoExpense: true),
+                            icon: const Icon(Icons.remove_circle_outline),
+                            label: const Text('ไม่มีค่าใช้จ่าย'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: _saving ? null : _save,
+                            child: _saving
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text('บันทึกค่าใช้จ่าย'),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
