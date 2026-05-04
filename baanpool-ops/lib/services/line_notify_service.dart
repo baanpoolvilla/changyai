@@ -283,10 +283,9 @@ class LineNotifyService {
 
   /// Call this from the dashboard to check all PM schedules and
   /// send notifications for those due within 7 days or overdue.
-  /// Returns count of notifications sent.
+  /// Always creates in-app notifications; only sends LINE if token is set.
+  /// Returns count of PM schedules processed.
   Future<int> checkAndNotifyPmDueSchedules() async {
-    if (!_enabled) return 0;
-
     int sent = 0;
     try {
       // Get PM schedules due within 7 days
@@ -354,20 +353,22 @@ class LineNotifyService {
 
         final propertyName = propNames[propertyId] ?? 'ไม่ทราบบ้าน';
 
-        // Send LINE notifications to technician + property manager + admins
-        await notifyPmDueSoon(
-          propertyId: propertyId,
-          propertyName: propertyName,
-          pmTitle: pm['title'] as String,
-          assetName: assetName,
-          nextDueDate: nextDue,
-          daysUntilDue: daysUntilDue,
-          assignedTo: assignedTo,
-          pmDescription: pm['description'] as String?,
-          assetId: assetId,
-        );
+        // Send LINE notifications only if LINE token is configured
+        if (_enabled) {
+          await notifyPmDueSoon(
+            propertyId: propertyId,
+            propertyName: propertyName,
+            pmTitle: pm['title'] as String,
+            assetName: assetName,
+            nextDueDate: nextDue,
+            daysUntilDue: daysUntilDue,
+            assignedTo: assignedTo,
+            pmDescription: pm['description'] as String?,
+            assetId: assetId,
+          );
+        }
 
-        // Create in-app notifications
+        // Always create in-app notifications (regardless of LINE token)
         await _createPmInAppNotifications(
           pmId: pm['id'] as String,
           pmTitle: pm['title'] as String,
@@ -431,9 +432,32 @@ class LineNotifyService {
       recipientIds.add(m['id'] as String);
     }
 
-    // Insert in-app notifications for all unique recipients
+    // Dedup key: today's date in UTC for checking existing notifications
+    final now = DateTime.now().toUtc();
+    final todayStart =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}T00:00:00.000Z';
+
+    // Insert in-app notifications for all unique recipients (skip if already sent today)
     for (final userId in recipientIds) {
       try {
+        // Dedup: skip if this PM was already notified to this user today
+        final existing = await _client
+            .from('notifications')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('reference_id', pmId)
+            .eq('type', 'pm')
+            .gte('created_at', todayStart)
+            .limit(1)
+            .maybeSingle();
+
+        if (existing != null) {
+          debugPrint(
+            'PM dedup: notification already exists for user $userId, pm $pmId today',
+          );
+          continue;
+        }
+
         await _client.from('notifications').insert({
           'user_id': userId,
           'title': title,
