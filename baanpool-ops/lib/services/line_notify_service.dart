@@ -283,9 +283,21 @@ class LineNotifyService {
 
   /// Call this from the dashboard to check all PM schedules and
   /// send notifications for those due within 7 days or overdue.
-  /// Always creates in-app notifications; only sends LINE if token is set.
+  /// Delegates to SQL RPC check_pm_due_schedules() which handles both
+  /// LINE (via app_settings token) and in-app notifications with dedup.
   /// Returns count of PM schedules processed.
   Future<int> checkAndNotifyPmDueSchedules() async {
+    try {
+      final result = await _client.rpc('check_pm_due_schedules');
+      return (result as int?) ?? 0;
+    } catch (e) {
+      debugPrint('PM notification check error: $e');
+      return 0;
+    }
+  }
+
+  // ignore: unused_element
+  Future<int> _checkAndNotifyPmDueSchedulesLegacy() async {
     int sent = 0;
     try {
       // Get PM schedules due within 7 days
