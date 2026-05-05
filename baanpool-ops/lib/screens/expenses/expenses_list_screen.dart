@@ -52,13 +52,13 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
         _service.getExpenses(),
         _service.getProperties(),
         _service.getWorkOrders(),
-        _service.getPropertyCategories(),
       ]);
+      final cats = await _service.getPropertyCategories();
 
       _allExpenses = results[0].map((e) => Expense.fromJson(e)).toList();
       _properties = results[1];
       _workOrders = results[2];
-      _categories = results[3] as Map<String, String>;
+      _categories = cats;
 
       _computeReport();
     } catch (e) {
