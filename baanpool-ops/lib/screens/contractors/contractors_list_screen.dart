@@ -101,18 +101,18 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
+                DropdownButtonFormField<String?>(
                   value: selectedZone,
                   decoration: const InputDecoration(
                     labelText: 'พื้นที่ (Zone)',
                     prefixIcon: Icon(Icons.location_on_outlined),
                   ),
                   items: [
-                    const DropdownMenuItem<String>(
+                    const DropdownMenuItem<String?>(
                       value: null,
                       child: Text('ไม่ระบุ'),
                     ),
-                    ...zoneOptions.map((z) => DropdownMenuItem<String>(
+                    ...zoneOptions.map((z) => DropdownMenuItem<String?>(
                       value: z,
                       child: Text(z),
                     )),
