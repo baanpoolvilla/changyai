@@ -21,7 +21,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _urgentCount = 0;
   int _todayCount = 0;
   int _pmDueSoonCount = 0;
-  int _totalProperties = 0;
+  int _noExpenseCount = 0;
   List<Map<String, dynamic>> _recentWorkOrders = [];
   Map<String, String> _propertyNames = {};
 
@@ -39,14 +39,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _service.getTodayJobsCount(),
         _service.getRecentWorkOrders(limit: 5),
         _service.getPropertyNamesOnly(),
+        _service.getNoExpenseWorkOrdersCount(),
       ]);
 
       _urgentCount = results[0] as int;
       _todayCount = results[1] as int;
       _recentWorkOrders = results[2] as List<Map<String, dynamic>>;
       final allProperties = results[3] as List<Map<String, dynamic>>;
+      _noExpenseCount = results[4] as int;
 
-      _totalProperties = allProperties.length;
       _propertyNames = {
         for (final p in allProperties) p['id'] as String: p['name'] as String,
       };
@@ -166,11 +167,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: _SummaryCard(
-                          title: 'จำนวนบ้าน',
-                          value: '$_totalProperties',
-                          icon: Icons.home,
-                          color: AppTheme.secondaryColor,
-                          onTap: () => context.go('/properties'),
+                          title: 'ยังไม่บันทึกค่าใช้จ่าย',
+                          value: '$_noExpenseCount',
+                          icon: Icons.receipt_long,
+                          color: Colors.red,
+                          onTap: () => context.go('/work-orders?filter=no-expense'),
                         ),
                       ),
                     ],

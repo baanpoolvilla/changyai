@@ -49,6 +49,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen> {
           status: _filterStatus,
           priority: _filterMode == 'urgent' ? 'urgent' : null,
           createdToday: _filterMode == 'today' ? true : null,
+          noExpense: _filterMode == 'no-expense' ? true : null,
         ),
         _service.getPropertyNamesOnly(),
         _service.getWorkOrderIdsWithExpenses(),
@@ -438,6 +439,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen> {
   String _buildTitle() {
     if (_filterMode == 'today') return 'งานใหม่วันนี้';
     if (_filterMode == 'urgent') return 'งานด่วน';
+    if (_filterMode == 'no-expense') return 'ยังไม่บันทึกค่าใช้จ่าย';
     if (_filterStatus != null) return 'ใบงาน (${_getFilterLabel()})';
     return 'ใบงานทั้งหมด';
   }

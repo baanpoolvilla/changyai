@@ -104,6 +104,7 @@ class SupabaseService {
     String? assignedTo,
     String? priority,
     bool? createdToday,
+    bool? noExpense,
   }) async {
     var query = _client.from('work_orders').select();
     if (status != null) query = query.eq('status', status);
@@ -118,7 +119,16 @@ class SupabaseService {
           .gte('created_at', start.toIso8601String())
           .lt('created_at', end.toIso8601String());
     }
-    return await query.order('created_at', ascending: false);
+    final data = await query.order('created_at', ascending: false);
+    if (noExpense == true) {
+      final withExpenses = await getWorkOrderIdsWithExpenses();
+      return data
+          .where((wo) =>
+              wo['status'] == 'completed' &&
+              !withExpenses.contains(wo['id'] as String))
+          .toList();
+    }
+    return data;
   }
 
   Future<void> createWorkOrder(Map<String, dynamic> data) async {
@@ -430,6 +440,19 @@ class SupabaseService {
         .from('properties')
         .select('id, name')
         .order('name', ascending: true);
+  }
+
+  /// Count completed work orders that have no expense records
+  Future<int> getNoExpenseWorkOrdersCount() async {
+    final withExpenses = await getWorkOrderIdsWithExpenses();
+    final completed = await _client
+        .from('work_orders')
+        .select('id')
+        .eq('status', 'completed');
+    final noExpense = completed.where(
+      (wo) => !withExpenses.contains(wo['id'] as String),
+    );
+    return noExpense.length;
   }
 
   /// Get work_order_ids that have at least one expense (for badge checking)
