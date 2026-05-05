@@ -6,6 +6,7 @@ class WorkOrder {
   final String propertyId;
   final String? assetId;
   final String? assignedTo; // user id of technician
+  final String? createdBy; // user id who created the work order
   final String title;
   final String? description;
   final WorkOrderStatus status;
@@ -20,6 +21,7 @@ class WorkOrder {
     required this.propertyId,
     this.assetId,
     this.assignedTo,
+    this.createdBy,
     required this.title,
     this.description,
     required this.status,
@@ -36,6 +38,7 @@ class WorkOrder {
       propertyId: json['property_id'] as String,
       assetId: json['asset_id'] as String?,
       assignedTo: json['assigned_to'] as String?,
+      createdBy: json['created_by'] as String?,
       title: json['title'] as String,
       description: json['description'] as String?,
       status: WorkOrderStatus.fromString(json['status'] as String),

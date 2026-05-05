@@ -7,7 +7,10 @@ import '../../services/auth_state_service.dart';
 import '../../utils/thai_datetime.dart';
 
 class WorkOrdersListScreen extends StatefulWidget {
-  const WorkOrdersListScreen({super.key});
+  /// Optional initial filter: 'today' | 'urgent' | null
+  final String? initialFilter;
+
+  const WorkOrdersListScreen({super.key, this.initialFilter});
 
   @override
   State<WorkOrdersListScreen> createState() => _WorkOrdersListScreenState();
@@ -18,20 +21,35 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen> {
   List<WorkOrder> _workOrders = [];
   bool _loading = true;
   String? _filterStatus;
+  String? _filterMode; // 'today' | 'urgent' | null
   Map<String, String> _propertyNames = {};
   Set<String> _workOrderIdsWithExpense = {};
 
   @override
   void initState() {
     super.initState();
+    _filterMode = widget.initialFilter;
     _load();
+  }
+
+  @override
+  void didUpdateWidget(WorkOrdersListScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialFilter != widget.initialFilter) {
+      _filterMode = widget.initialFilter;
+      _load();
+    }
   }
 
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
       final results = await Future.wait([
-        _service.getWorkOrders(status: _filterStatus),
+        _service.getWorkOrders(
+          status: _filterStatus,
+          priority: _filterMode == 'urgent' ? 'urgent' : null,
+          createdToday: _filterMode == 'today' ? true : null,
+        ),
         _service.getPropertyNamesOnly(),
         _service.getWorkOrderIdsWithExpenses(),
       ]);
@@ -105,11 +123,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          _filterStatus != null
-              ? 'ใบงาน (${_getFilterLabel()})'
-              : 'ใบงานทั้งหมด',
-        ),
+        title: Text(_buildTitle()),
         actions: [
           IconButton(
             icon: Badge(
@@ -419,5 +433,12 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen> {
   String _getFilterLabel() {
     if (_filterStatus == null) return 'ทั้งหมด';
     return WorkOrderStatus.fromString(_filterStatus!).displayName;
+  }
+
+  String _buildTitle() {
+    if (_filterMode == 'today') return 'งานใหม่วันนี้';
+    if (_filterMode == 'urgent') return 'งานด่วน';
+    if (_filterStatus != null) return 'ใบงาน (${_getFilterLabel()})';
+    return 'ใบงานทั้งหมด';
   }
 }

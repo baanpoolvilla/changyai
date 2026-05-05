@@ -136,17 +136,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           value: '$_urgentCount',
                           icon: Icons.warning_amber_rounded,
                           color: AppTheme.urgentColor,
-                          onTap: () => context.go('/work-orders'),
+                          onTap: () => context.go('/work-orders?filter=urgent'),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: _SummaryCard(
-                          title: 'งานวันนี้',
+                          title: 'งานใหม่วันนี้',
                           value: '$_todayCount',
                           icon: Icons.today,
                           color: AppTheme.primaryColor,
-                          onTap: () => context.go('/work-orders'),
+                          onTap: () => context.go('/work-orders?filter=today'),
                         ),
                       ),
                     ],
@@ -156,7 +156,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     children: [
                       Expanded(
                         child: _SummaryCard(
-                          title: 'PM ใกล้ครบ',
+                          title: 'PM ใกล้ครบกำหนด',
                           value: '$_pmDueSoonCount',
                           icon: Icons.schedule,
                           color: AppTheme.warningColor,

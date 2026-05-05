@@ -191,14 +191,14 @@ class _ContractorDetailScreenState extends State<ContractorDetailScreen> {
 
     if (_loading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('รายละเอียดช่างภายนอก')),
+        appBar: AppBar(title: const Text('รายละเอียด Contact')),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     if (_contractor == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('รายละเอียดช่างภายนอก')),
+        appBar: AppBar(title: const Text('รายละเอียด Contact')),
         body: const Center(child: Text('ไม่พบข้อมูล')),
       );
     }
@@ -206,7 +206,12 @@ class _ContractorDetailScreenState extends State<ContractorDetailScreen> {
     final c = _contractor!;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('รายละเอียดช่างภายนอก')),
+      appBar: AppBar(title: const Text('รายละเอียด Contact')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showEditDialog(c),
+        icon: const Icon(Icons.edit),
+        label: const Text('แก้ไขข้อมูล'),
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -268,6 +273,10 @@ class _ContractorDetailScreenState extends State<ContractorDetailScreen> {
                         'ช่องทางติดต่ออื่นๆ',
                         c.email!,
                       ),
+                    if (c.specialty != null)
+                      _infoRow(Icons.stars_outlined, 'คุณสมบัติ', c.specialty!),
+                    if (c.zone != null)
+                      _infoRow(Icons.location_on_outlined, 'พื้นที่', c.zone!),
                     if (c.companyName != null)
                       _infoRow(Icons.business, 'บริษัท', c.companyName!),
                     if (c.notes != null)
@@ -476,6 +485,148 @@ class _ContractorDetailScreenState extends State<ContractorDetailScreen> {
           color: Colors.amber,
         );
       }),
+    );
+  }
+
+  void _showEditDialog(Contractor contractor) {
+    final nameCtrl = TextEditingController(text: contractor.name);
+    final phoneCtrl = TextEditingController(text: contractor.phone ?? '');
+    final emailCtrl = TextEditingController(text: contractor.email ?? '');
+    final specialtyCtrl = TextEditingController(text: contractor.specialty ?? '');
+    final companyCtrl = TextEditingController(text: contractor.companyName ?? '');
+    final notesCtrl = TextEditingController(text: contractor.notes ?? '');
+    String? selectedZone = contractor.zone;
+    final formKey = GlobalKey<FormState>();
+    const zoneOptions = ['ทั่วไป', 'บางแสน', 'พัทยา'];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('แก้ไขข้อมูล Contact'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'ชื่อ *',
+                      prefixIcon: Icon(Icons.person),
+                    ),
+                    validator: (v) =>
+                        v == null || v.isEmpty ? 'กรุณากรอกชื่อ' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: phoneCtrl,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'เบอร์โทร',
+                      prefixIcon: Icon(Icons.phone),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: emailCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'ช่องทางติดต่ออื่นๆ',
+                      prefixIcon: Icon(Icons.contact_page),
+                      hintText: 'เช่น LINE ID, Facebook',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: specialtyCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'คุณสมบัติ',
+                      prefixIcon: Icon(Icons.stars_outlined),
+                      hintText: 'เช่น ไฟฟ้า, ประปา, แอร์, กฎหมาย',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: selectedZone,
+                    decoration: const InputDecoration(
+                      labelText: 'พื้นที่ (Zone)',
+                      prefixIcon: Icon(Icons.location_on_outlined),
+                    ),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: null,
+                        child: Text('ไม่ระบุ'),
+                      ),
+                      ...zoneOptions.map((z) => DropdownMenuItem<String>(
+                        value: z,
+                        child: Text(z),
+                      )),
+                    ],
+                    onChanged: (v) => setDialogState(() => selectedZone = v),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: companyCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'บริษัท',
+                      prefixIcon: Icon(Icons.business),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: notesCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'หมายเหตุ',
+                      prefixIcon: Icon(Icons.notes),
+                    ),
+                    maxLines: 2,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('ยกเลิก'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                if (!formKey.currentState!.validate()) return;
+                Navigator.pop(ctx);
+                try {
+                  await _service.updateContractor(contractor.id, {
+                    'name': nameCtrl.text.trim(),
+                    'phone': phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
+                    'email': emailCtrl.text.trim().isEmpty ? null : emailCtrl.text.trim(),
+                    'specialty': specialtyCtrl.text.trim().isEmpty ? null : specialtyCtrl.text.trim(),
+                    'company_name': companyCtrl.text.trim().isEmpty ? null : companyCtrl.text.trim(),
+                    'notes': notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+                    'zone': selectedZone,
+                  });
+                  _load();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('แก้ไขข้อมูลสำเร็จ'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('บันทึกไม่สำเร็จ: $e')),
+                    );
+                  }
+                }
+              },
+              child: const Text('บันทึก'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -5,9 +5,10 @@ class Contractor {
   final String name;
   final String? phone;
   final String? email;
-  final String? specialty; // เช่น ไฟฟ้า, ประปา, แอร์, ทั่วไป
+  final String? specialty; // คุณสมบัติ เช่น ไฟฟ้า, ประปา, แอร์, ทั่วไป
   final String? companyName;
   final String? notes;
+  final String? zone; // พื้นที่ เช่น บางแสน, พัทยา, ทั่วไป
   final int? rating; // 1-5
   final bool isActive;
   final DateTime createdAt;
@@ -20,6 +21,7 @@ class Contractor {
     this.specialty,
     this.companyName,
     this.notes,
+    this.zone,
     this.rating,
     this.isActive = true,
     required this.createdAt,
@@ -34,6 +36,7 @@ class Contractor {
       specialty: json['specialty'] as String?,
       companyName: json['company_name'] as String?,
       notes: json['notes'] as String?,
+      zone: json['zone'] as String?,
       rating: json['rating'] as int?,
       isActive: json['is_active'] as bool? ?? true,
       createdAt: DateTime.parse(json['created_at'] as String),
@@ -47,6 +50,7 @@ class Contractor {
     'specialty': specialty,
     'company_name': companyName,
     'notes': notes,
+    'zone': zone,
     'rating': rating,
     'is_active': isActive,
   };

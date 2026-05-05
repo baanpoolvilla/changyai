@@ -96,7 +96,7 @@ class _ShellScreenState extends State<ShellScreen> {
           path: '/contractors',
           icon: Icons.contacts_outlined,
           selectedIcon: Icons.contacts,
-          label: 'ช่างภายนอก',
+          label: 'Contact',
         ),
       );
     }

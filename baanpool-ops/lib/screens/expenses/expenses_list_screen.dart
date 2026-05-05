@@ -22,6 +22,10 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
   late int _selectedYear;
   late int _selectedMonth;
 
+  // Category filter
+  String? _selectedCategoryPrefix; // null = all
+  Map<String, String> _categories = {}; // prefix → displayName
+
   // Data
   List<Expense> _allExpenses = [];
   List<Map<String, dynamic>> _properties = [];
@@ -48,11 +52,13 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
         _service.getExpenses(),
         _service.getProperties(),
         _service.getWorkOrders(),
+        _service.getPropertyCategories(),
       ]);
 
       _allExpenses = results[0].map((e) => Expense.fromJson(e)).toList();
       _properties = results[1];
       _workOrders = results[2];
+      _categories = results[3] as Map<String, String>;
 
       _computeReport();
     } catch (e) {
@@ -77,6 +83,13 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
 
     for (final expense in filtered) {
       final pid = expense.propertyId ?? 'unknown';
+
+      // Apply category filter: skip properties not in selected category
+      if (_selectedCategoryPrefix != null) {
+        final propName = _getPropertyName(pid);
+        if (!propName.startsWith(_selectedCategoryPrefix!)) continue;
+      }
+
       _expensesByProperty.putIfAbsent(pid, () => []).add(expense);
       _totalByProperty[pid] = (_totalByProperty[pid] ?? 0) + expense.amount;
       _grandTotal += expense.amount;
@@ -284,6 +297,9 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
                 // Month selector
                 _buildMonthSelector(theme),
 
+                // Category filter chips
+                if (_categories.isNotEmpty) _buildCategoryFilter(theme),
+
                 // Grand total card
                 _buildGrandTotal(theme),
 
@@ -335,6 +351,47 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
         },
         icon: const Icon(Icons.add),
         label: const Text('เพิ่มค่าใช้จ่าย'),
+      ),
+    );
+  }
+
+  Widget _buildCategoryFilter(ThemeData theme) {
+    return SizedBox(
+      height: 44,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        children: [
+          // "ทั้งหมด" chip
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              label: const Text('ทั้งหมด'),
+              selected: _selectedCategoryPrefix == null,
+              onSelected: (_) {
+                setState(() => _selectedCategoryPrefix = null);
+                _computeReport();
+              },
+            ),
+          ),
+          // Category chips
+          ..._categories.entries.map((entry) {
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilterChip(
+                label: Text(entry.value),
+                selected: _selectedCategoryPrefix == entry.key,
+                onSelected: (_) {
+                  setState(() {
+                    _selectedCategoryPrefix =
+                        _selectedCategoryPrefix == entry.key ? null : entry.key;
+                  });
+                  _computeReport();
+                },
+              ),
+            );
+          }),
+        ],
       ),
     );
   }

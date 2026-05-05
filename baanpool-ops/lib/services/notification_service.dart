@@ -35,6 +35,7 @@ class NotificationService extends ChangeNotifier {
     }
 
     _initialized = true;
+    await _cleanupOldReadNotifications();
     await _loadNotifications();
     _subscribeRealtime(user.id);
     _startPolling();
@@ -126,14 +127,15 @@ class NotificationService extends ChangeNotifier {
   /// Mark a single notification as read
   Future<void> markAsRead(String notificationId) async {
     try {
+      final now = DateTime.now().toIso8601String();
       await _client
           .from('notifications')
-          .update({'is_read': true})
+          .update({'is_read': true, 'read_at': now})
           .eq('id', notificationId);
 
       final idx = _notifications.indexWhere((n) => n['id'] == notificationId);
       if (idx >= 0 && _notifications[idx]['is_read'] != true) {
-        _notifications[idx] = {..._notifications[idx], 'is_read': true};
+        _notifications[idx] = {..._notifications[idx], 'is_read': true, 'read_at': now};
         _unreadCount = (_unreadCount - 1).clamp(0, 999);
         notifyListeners();
       }
@@ -148,19 +150,41 @@ class NotificationService extends ChangeNotifier {
       final user = _client.auth.currentUser;
       if (user == null) return;
 
+      final now = DateTime.now().toIso8601String();
       await _client
           .from('notifications')
-          .update({'is_read': true})
+          .update({'is_read': true, 'read_at': now})
           .eq('user_id', user.id)
           .eq('is_read', false);
 
       for (int i = 0; i < _notifications.length; i++) {
-        _notifications[i] = {..._notifications[i], 'is_read': true};
+        if (_notifications[i]['is_read'] != true) {
+          _notifications[i] = {..._notifications[i], 'is_read': true, 'read_at': now};
+        }
       }
       _unreadCount = 0;
       notifyListeners();
     } catch (e) {
       debugPrint('Mark all as read error: $e');
+    }
+  }
+
+  /// Delete notifications that were read more than 2 days ago
+  Future<void> _cleanupOldReadNotifications() async {
+    try {
+      final user = _client.auth.currentUser;
+      if (user == null) return;
+
+      final cutoff = DateTime.now().subtract(const Duration(days: 2)).toIso8601String();
+      await _client
+          .from('notifications')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('is_read', true)
+          .lte('read_at', cutoff)
+          .not('read_at', 'is', null);
+    } catch (e) {
+      debugPrint('Cleanup old notifications error: $e');
     }
   }
 

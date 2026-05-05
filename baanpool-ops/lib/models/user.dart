@@ -54,9 +54,9 @@ enum UserRole {
   String get displayName {
     switch (this) {
       case UserRole.admin:
-        return 'ผู้ดูแลระบบ';
+        return 'Super Admin';
       case UserRole.owner:
-        return 'เจ้าของ';
+        return 'CEO';
       case UserRole.manager:
         return 'ผู้จัดการ';
       case UserRole.caretaker:
@@ -69,6 +69,12 @@ enum UserRole {
   /// Returns true if this role has admin-level access (sees dashboard, expenses, etc.)
   bool get isAdmin =>
       this == admin || this == owner || this == manager || this == caretaker;
+
+  /// Returns true only for the Super Admin role (full system control)
+  bool get isSuperAdmin => this == admin;
+
+  /// Returns true for CEO (owner) role
+  bool get isCeo => this == owner;
 
   /// Returns true if this role can assign caretakers and technicians
   bool get canAssignCaretaker =>

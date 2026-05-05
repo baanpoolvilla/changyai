@@ -581,14 +581,75 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                   label: const Text('ทำเสร็จแล้ว'),
                 ),
             ],
+
+            // ลบใบงาน — Super Admin only
+            if (_authState.currentRole.isSuperAdmin) ...[
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _showDeleteDialog,
+                  icon: const Icon(Icons.delete_forever, color: Colors.red),
+                  label: const Text('ลบใบงาน', style: TextStyle(color: Colors.red)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.red),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  void _showFullImage(BuildContext context, String url) {
+  void _showDeleteDialog() {
+    if (_workOrder == null) return;
     showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ลบใบงาน'),
+        content: Text(
+          'ต้องการลบใบงาน "${_workOrder!.title}" หรือไม่?\n\nการดำเนินการนี้ไม่สามารถย้อนกลับได้',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('ยกเลิก'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await _service.deleteWorkOrder(widget.workOrderId);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('ลบใบงานแล้ว'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  context.pop();
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('ลบไม่สำเร็จ: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('ลบ'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFullImage(BuildContext context, String url) {    showDialog(
       context: context,
       builder: (ctx) => Dialog(
         child: Stack(

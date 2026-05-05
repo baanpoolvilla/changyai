@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/contractor.dart';
 import '../../services/supabase_service.dart';
 
-/// รายชื่อช่างภายนอก / ผู้รับเหมา
+/// รายชื่อติดต่อ (Contact)
 class ContractorsListScreen extends StatefulWidget {
   const ContractorsListScreen({super.key});
 
@@ -49,12 +49,15 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
       text: contractor?.companyName ?? '',
     );
     final notesCtrl = TextEditingController(text: contractor?.notes ?? '');
+    String? selectedZone = contractor?.zone;
     final formKey = GlobalKey<FormState>();
+    const zoneOptions = ['ทั่วไป', 'บางแสน', 'พัทยา'];
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(contractor == null ? 'เพิ่มช่างภายนอก' : 'แก้ไขข้อมูลช่าง'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+        title: Text(contractor == null ? 'เพิ่ม Contact' : 'แก้ไขข้อมูล Contact'),
         content: Form(
           key: formKey,
           child: SingleChildScrollView(
@@ -89,13 +92,32 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
+                  TextFormField(
                   controller: specialtyCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'ความชำนาญ',
-                    prefixIcon: Icon(Icons.build),
-                    hintText: 'เช่น ไฟฟ้า, ประปา, แอร์',
+                    labelText: 'คุณสมบัติ',
+                    prefixIcon: Icon(Icons.stars_outlined),
+                    hintText: 'เช่น ไฟฟ้า, ประปา, แอร์, กฎหมาย',
                   ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedZone,
+                  decoration: const InputDecoration(
+                    labelText: 'พื้นที่ (Zone)',
+                    prefixIcon: Icon(Icons.location_on_outlined),
+                  ),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: null,
+                      child: Text('ไม่ระบุ'),
+                    ),
+                    ...zoneOptions.map((z) => DropdownMenuItem<String>(
+                      value: z,
+                      child: Text(z),
+                    )),
+                  ],
+                  onChanged: (v) => setDialogState(() => selectedZone = v),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -146,6 +168,7 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
                   'notes': notesCtrl.text.trim().isEmpty
                       ? null
                       : notesCtrl.text.trim(),
+                  'zone': selectedZone,
                 };
 
                 if (contractor == null) {
@@ -160,8 +183,8 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
                     SnackBar(
                       content: Text(
                         contractor == null
-                            ? 'เพิ่มช่างภายนอกสำเร็จ'
-                            : 'แก้ไขข้อมูลช่างสำเร็จ',
+                            ? 'เพิ่ม Contact สำเร็จ'
+                            : 'แก้ไขข้อมูลสำเร็จ',
                       ),
                       backgroundColor: Colors.green,
                     ),
@@ -179,6 +202,7 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -186,7 +210,7 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('ลบช่างภายนอก'),
+        title: const Text('ลบ Contact'),
         content: Text('ต้องการลบ "${contractor.name}" หรือไม่?'),
         actions: [
           TextButton(
@@ -228,7 +252,7 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('ช่างภายนอก / ผู้รับเหมา')),
+      appBar: AppBar(title: const Text('รายชื่อ Contact')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _contractors.isEmpty
@@ -243,7 +267,7 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'ยังไม่มีข้อมูลช่างภายนอก',
+                    'ยังไม่มีข้อมูล Contact',
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: theme.colorScheme.outline,
                     ),
@@ -252,7 +276,7 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
                   FilledButton.icon(
                     onPressed: () => _showAddEditDialog(),
                     icon: const Icon(Icons.add),
-                    label: const Text('เพิ่มช่างภายนอก'),
+                    label: const Text('เพิ่ม Contact'),
                   ),
                 ],
               ),
@@ -271,7 +295,7 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddEditDialog(),
         icon: const Icon(Icons.person_add),
-        label: const Text('เพิ่มช่างภายนอก'),
+        label: const Text('เพิ่ม Contact'),
       ),
     );
   }
@@ -316,6 +340,20 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.outline,
                             ),
+                          ),
+                        if (c.zone != null)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.location_on, size: 12, color: theme.colorScheme.outline),
+                              const SizedBox(width: 2),
+                              Text(
+                                c.zone!,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.outline,
+                                ),
+                              ),
+                            ],
                           ),
                       ],
                     ),

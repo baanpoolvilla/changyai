@@ -102,15 +102,30 @@ class SupabaseService {
     String? status,
     String? propertyId,
     String? assignedTo,
+    String? priority,
+    bool? createdToday,
   }) async {
     var query = _client.from('work_orders').select();
     if (status != null) query = query.eq('status', status);
     if (propertyId != null) query = query.eq('property_id', propertyId);
     if (assignedTo != null) query = query.eq('assigned_to', assignedTo);
+    if (priority != null) query = query.eq('priority', priority);
+    if (createdToday == true) {
+      final today = DateTime.now();
+      final start = DateTime(today.year, today.month, today.day);
+      final end = start.add(const Duration(days: 1));
+      query = query
+          .gte('created_at', start.toIso8601String())
+          .lt('created_at', end.toIso8601String());
+    }
     return await query.order('created_at', ascending: false);
   }
 
   Future<void> createWorkOrder(Map<String, dynamic> data) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId != null && !data.containsKey('created_by')) {
+      data = {...data, 'created_by': userId};
+    }
     await _client.from('work_orders').insert(data);
   }
 
@@ -124,6 +139,11 @@ class SupabaseService {
 
   Future<void> updateWorkOrder(String id, Map<String, dynamic> data) async {
     await _client.from('work_orders').update(data).eq('id', id);
+  }
+
+  /// Delete a work order — only Super Admin (admin role) should call this
+  Future<void> deleteWorkOrder(String id) async {
+    await _client.from('work_orders').delete().eq('id', id);
   }
 
   // ─── Expenses ─────────────────────────────────────────

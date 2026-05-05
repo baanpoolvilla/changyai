@@ -121,7 +121,9 @@ final appRouter = GoRouter(
         // Work Orders
         GoRoute(
           path: '/work-orders',
-          builder: (context, state) => const WorkOrdersListScreen(),
+          builder: (context, state) => WorkOrdersListScreen(
+            initialFilter: state.uri.queryParameters['filter'],
+          ),
           routes: [
             GoRoute(
               path: 'new',
