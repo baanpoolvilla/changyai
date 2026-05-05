@@ -165,6 +165,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
     // Reset completion images
     _completionImages.clear();
     _completionImageBytes.clear();
+    final completionNotesCtrl = TextEditingController();
 
     showDialog(
       context: context,
@@ -178,8 +179,22 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'กรุณาแนบรูปถ่ายก่อนกดยืนยัน',
+                  'กรุณากรอกรายละเอียดและแนบรูปถ่ายก่อนกดยืนยัน',
                   style: TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+
+                // Completion notes field
+                TextField(
+                  controller: completionNotesCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'รายละเอียดจบงาน *',
+                    hintText: 'เช่น เปลี่ยนปั๊มน้ำแล้ว, ซ่อมไฟเสร็จ...',
+                    prefixIcon: Icon(Icons.notes),
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                  onChanged: (_) => setDialogState(() {}),
                 ),
                 const SizedBox(height: 16),
 
@@ -283,11 +298,14 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
               child: const Text('ยกเลิก'),
             ),
             FilledButton(
-              onPressed: _completionImageBytes.isEmpty
+              onPressed: (_completionImageBytes.isEmpty ||
+                      completionNotesCtrl.text.trim().isEmpty)
                   ? null
                   : () async {
                       Navigator.pop(ctx);
-                      await _completeWithPhotos();
+                      await _completeWithPhotos(
+                        notes: completionNotesCtrl.text.trim(),
+                      );
                     },
               child: const Text('ยืนยันเสร็จ'),
             ),
@@ -298,7 +316,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
   }
 
   /// Upload completion photos and mark as completed
-  Future<void> _completeWithPhotos() async {
+  Future<void> _completeWithPhotos({String? notes}) async {
     try {
       // Show loading
       if (mounted) {
@@ -330,11 +348,12 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
         if (url != null) photoUrls.add(url);
       }
 
-      // Update work order: status + photos
+      // Update work order: status + photos + completion notes
       await _service.updateWorkOrder(widget.workOrderId, {
         'status': 'completed',
         'completed_at': DateTime.now().toIso8601String(),
         'photo_urls': photoUrls,
+        if (notes != null && notes.isNotEmpty) 'completion_notes': notes,
       });
 
       // Update PM schedule if this work order is linked to an asset
@@ -455,6 +474,14 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                         'เสร็จเมื่อ',
                         '${wo.completedAt!.day}/${wo.completedAt!.month}/${wo.completedAt!.year}',
                         valueColor: Colors.green,
+                      ),
+
+                    // Completion notes
+                    if (wo.completionNotes != null && wo.completionNotes!.isNotEmpty)
+                      _infoRow(
+                        Icons.notes,
+                        'รายละเอียดจบงาน',
+                        wo.completionNotes!,
                       ),
                   ],
                 ),

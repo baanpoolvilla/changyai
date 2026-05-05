@@ -13,6 +13,7 @@ class WorkOrder {
   final WorkOrderPriority priority;
   final DateTime? dueDate;
   final DateTime? completedAt;
+  final String? completionNotes;
   final List<String> photoUrls;
   final DateTime createdAt;
 
@@ -28,6 +29,7 @@ class WorkOrder {
     required this.priority,
     this.dueDate,
     this.completedAt,
+    this.completionNotes,
     this.photoUrls = const [],
     required this.createdAt,
   });
@@ -49,6 +51,7 @@ class WorkOrder {
       completedAt: json['completed_at'] != null
           ? parseServerTimestampToThai(json['completed_at'] as String)
           : null,
+      completionNotes: json['completion_notes'] as String?,
       photoUrls:
           (json['photo_urls'] as List<dynamic>?)
               ?.map((e) => e as String)
@@ -68,6 +71,7 @@ class WorkOrder {
     'priority': priority.name,
     'due_date': dueDate?.toIso8601String(),
     'completed_at': completedAt?.toIso8601String(),
+    'completion_notes': completionNotes,
     'photo_urls': photoUrls,
   };
 
