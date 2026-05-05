@@ -126,7 +126,17 @@ class SupabaseService {
     if (userId != null && !data.containsKey('created_by')) {
       data = {...data, 'created_by': userId};
     }
-    await _client.from('work_orders').insert(data);
+    try {
+      await _client.from('work_orders').insert(data);
+    } catch (e) {
+      // Fallback: retry without created_by if column not yet in schema cache
+      if (e.toString().contains('created_by') && data.containsKey('created_by')) {
+        final fallback = Map<String, dynamic>.from(data)..remove('created_by');
+        await _client.from('work_orders').insert(fallback);
+      } else {
+        rethrow;
+      }
+    }
   }
 
   Future<Map<String, dynamic>> getWorkOrder(String id) async {
