@@ -30,6 +30,7 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
   List<Expense> _allExpenses = [];
   List<Map<String, dynamic>> _properties = [];
   List<Map<String, dynamic>> _workOrders = [];
+  List<Map<String, dynamic>> _pmSchedules = [];
 
   // Computed report data
   final Map<String, List<Expense>> _expensesByProperty = {};
@@ -52,12 +53,14 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
         _service.getExpenses(),
         _service.getProperties(),
         _service.getWorkOrders(),
+        _service.getPmSchedules(),
       ]);
       final cats = await _service.getPropertyCategories();
 
       _allExpenses = results[0].map((e) => Expense.fromJson(e)).toList();
       _properties = results[1];
       _workOrders = results[2];
+      _pmSchedules = results[3];
       _categories = cats;
 
       _computeReport();
@@ -103,6 +106,24 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
       orElse: () => null,
     );
     return property?['name'] as String? ?? 'ไม่ทราบชื่อ';
+  }
+
+  String? _getWorkOrderTitle(String? id) {
+    if (id == null) return null;
+    final wo = _workOrders.cast<Map<String, dynamic>?>().firstWhere(
+      (w) => w?['id'] == id,
+      orElse: () => null,
+    );
+    return wo?['title'] as String?;
+  }
+
+  String? _getPmTitle(String? id) {
+    if (id == null) return null;
+    final pm = _pmSchedules.cast<Map<String, dynamic>?>().firstWhere(
+      (p) => p?['id'] == id,
+      orElse: () => null,
+    );
+    return pm?['title'] as String?;
   }
 
   String _formatAmount(double amount) {
@@ -557,10 +578,17 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
                 style: theme.textTheme.bodyMedium,
               ),
               subtitle: Text(
-                '${e.isNoExpense ? 'ไม่มีค่าใช้จ่าย' : _categoryLabel(e.category)} • ${formatThaiDate(e.expenseDate)}'
-                ' • ${e.costType.displayName}'
-                ' • ${e.paidBy.displayName}'
-                ' • บันทึกเมื่อ ${formatThaiDateTime(e.createdAt)}',
+                () {
+                  final ref = e.isNoExpense
+                      ? (_getWorkOrderTitle(e.workOrderId) ??
+                          _getPmTitle(e.pmScheduleId) ??
+                          e.costType.displayName)
+                      : _categoryLabel(e.category);
+                  return '$ref • ${formatThaiDate(e.expenseDate)}'
+                      ' • ${e.costType.displayName}'
+                      ' • ${e.paidBy.displayName}'
+                      ' • บันทึกเมื่อ ${formatThaiDateTime(e.createdAt)}';
+                }(),
                 style: theme.textTheme.bodySmall,
               ),
               trailing: Column(
