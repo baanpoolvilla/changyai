@@ -108,7 +108,7 @@ class SupabaseService {
   }) async {
     var query = _client
         .from('work_orders')
-        .select('*, creator:created_by(full_name)');
+        .select();
     if (status != null) query = query.eq('status', status);
     if (propertyId != null) query = query.eq('property_id', propertyId);
     if (assignedTo != null) query = query.eq('assigned_to', assignedTo);
@@ -154,7 +154,7 @@ class SupabaseService {
   Future<Map<String, dynamic>> getWorkOrder(String id) async {
     return await _client
         .from('work_orders')
-        .select('*, creator:created_by(full_name)')
+        .select()
         .eq('id', id)
         .single();
   }
