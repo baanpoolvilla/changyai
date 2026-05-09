@@ -277,6 +277,21 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen> {
                         color: theme.colorScheme.outline,
                       ),
                     ),
+                    if (wo.createdByName != null) ...[
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.person_add_alt_1,
+                        size: 14,
+                        color: theme.colorScheme.outline,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        wo.createdByName!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               if (wo.description != null && wo.description!.isNotEmpty) ...[

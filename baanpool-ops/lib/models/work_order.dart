@@ -7,6 +7,7 @@ class WorkOrder {
   final String? assetId;
   final String? assignedTo; // user id of technician
   final String? createdBy; // user id who created the work order
+  final String? createdByName; // joined from users table
   final String title;
   final String? description;
   final WorkOrderStatus status;
@@ -24,6 +25,7 @@ class WorkOrder {
     this.assetId,
     this.assignedTo,
     this.createdBy,
+    this.createdByName,
     required this.title,
     this.description,
     required this.status,
@@ -37,12 +39,18 @@ class WorkOrder {
   });
 
   factory WorkOrder.fromJson(Map<String, dynamic> json) {
+    // Handle joined creator data
+    String? creatorName;
+    if (json['creator'] is Map) {
+      creatorName = json['creator']['full_name'] as String?;
+    }
     return WorkOrder(
       id: json['id'] as String,
       propertyId: json['property_id'] as String,
       assetId: json['asset_id'] as String?,
       assignedTo: json['assigned_to'] as String?,
       createdBy: json['created_by'] as String?,
+      createdByName: creatorName,
       title: json['title'] as String,
       description: json['description'] as String?,
       status: WorkOrderStatus.fromString(json['status'] as String),

@@ -106,7 +106,9 @@ class SupabaseService {
     bool? createdToday,
     bool? noExpense,
   }) async {
-    var query = _client.from('work_orders').select();
+    var query = _client
+        .from('work_orders')
+        .select('*, creator:created_by(full_name)');
     if (status != null) query = query.eq('status', status);
     if (propertyId != null) query = query.eq('property_id', propertyId);
     if (assignedTo != null) query = query.eq('assigned_to', assignedTo);
@@ -150,7 +152,11 @@ class SupabaseService {
   }
 
   Future<Map<String, dynamic>> getWorkOrder(String id) async {
-    return await _client.from('work_orders').select().eq('id', id).single();
+    return await _client
+        .from('work_orders')
+        .select('*, creator:created_by(full_name)')
+        .eq('id', id)
+        .single();
   }
 
   Future<void> updateWorkOrderStatus(String id, String status) async {

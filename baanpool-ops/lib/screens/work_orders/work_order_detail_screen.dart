@@ -25,7 +25,6 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
   WorkOrder? _workOrder;
   String? _propertyName;
   String? _technicianName;
-  String? _creatorName;
   bool _loading = true;
   bool _hasExpense = false;
 
@@ -91,17 +90,6 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
               .getUser(_workOrder!.assignedTo!)
               .then((user) {
                 _technicianName = user?['full_name'] as String?;
-              })
-              .catchError((_) {}),
-        );
-      }
-
-      if (_workOrder!.createdBy != null) {
-        futures.add(
-          _service
-              .getUser(_workOrder!.createdBy!)
-              .then((user) {
-                _creatorName = user?['full_name'] as String?;
               })
               .catchError((_) {}),
         );
@@ -494,11 +482,11 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                       _infoRow(Icons.home, 'บ้าน', _propertyName!),
 
                     // Created by
-                    if (_creatorName != null)
+                    if (wo.createdByName != null)
                       _infoRow(
                         Icons.person_add_alt_1,
                         'สร้างโดย',
-                        _creatorName!,
+                        wo.createdByName!,
                       ),
 
                     // Responsible person
