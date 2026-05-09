@@ -522,6 +522,18 @@ class SupabaseService {
         .order('name', ascending: true);
   }
 
+  /// Batch-fetch user full_names by a list of user IDs
+  Future<Map<String, String>> getUserNamesByIds(List<String> ids) async {
+    if (ids.isEmpty) return {};
+    final data = await _client
+        .from('users')
+        .select('id, full_name')
+        .inFilter('id', ids);
+    return {
+      for (final u in data) u['id'] as String: u['full_name'] as String,
+    };
+  }
+
   /// Count completed work orders that have no expense records
   Future<int> getNoExpenseWorkOrdersCount() async {
     final withExpenses = await getWorkOrderIdsWithExpenses();

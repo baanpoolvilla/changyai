@@ -23,6 +23,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen> {
   String? _filterStatus;
   String? _filterMode; // 'today' | 'urgent' | null
   Map<String, String> _propertyNames = {};
+  Map<String, String> _creatorNames = {};
   Set<String> _workOrderIdsWithExpense = {};
 
   @override
@@ -63,6 +64,15 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen> {
       };
 
       _workOrderIdsWithExpense = results[2] as Set<String>;
+
+      // Batch-fetch creator names
+      final creatorIds = _workOrders
+          .map((wo) => wo.createdBy)
+          .where((id) => id != null)
+          .cast<String>()
+          .toSet()
+          .toList();
+      _creatorNames = await _service.getUserNamesByIds(creatorIds);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -212,6 +222,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen> {
 
   Widget _buildWorkOrderCard(WorkOrder wo, ThemeData theme) {
     final propertyName = _propertyNames[wo.propertyId] ?? '';
+    final creatorName = wo.createdBy != null ? _creatorNames[wo.createdBy] : null;
     final isNew = wo.status == WorkOrderStatus.open;
     final hasExpense = _workOrderIdsWithExpense.contains(wo.id);
 
@@ -277,6 +288,21 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen> {
                         color: theme.colorScheme.outline,
                       ),
                     ),
+                    if (creatorName != null) ...[
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.person_add_alt_1,
+                        size: 14,
+                        color: theme.colorScheme.outline,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        creatorName,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               if (wo.description != null && wo.description!.isNotEmpty) ...[
