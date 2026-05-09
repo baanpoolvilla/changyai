@@ -172,14 +172,24 @@ class SupabaseService {
     String? workOrderId,
     String? propertyId,
   }) async {
-    var query = _client.from('expenses').select();
+    var query = _client.from('expenses').select('*, creator:created_by(full_name)');
     if (workOrderId != null) query = query.eq('work_order_id', workOrderId);
     if (propertyId != null) query = query.eq('property_id', propertyId);
     return await query.order('expense_date', ascending: false);
   }
 
   Future<void> createExpense(Map<String, dynamic> data) async {
-    await _client.from('expenses').insert(data);
+    final userId = _client.auth.currentUser?.id;
+    final dataWithCreator = userId != null ? {...data, 'created_by': userId} : data;
+    try {
+      await _client.from('expenses').insert(dataWithCreator);
+    } catch (e) {
+      if (e.toString().contains('created_by')) {
+        await _client.from('expenses').insert(data);
+      } else {
+        rethrow;
+      }
+    }
   }
 
   // ─── PM Schedules ─────────────────────────────────────
@@ -193,7 +203,7 @@ class SupabaseService {
       var query = _client
           .from('pm_schedules')
           .select(
-            '*, users:assigned_to(full_name), properties:property_id(name), assets:asset_id(name)',
+            '*, users:assigned_to(full_name), creator:created_by(full_name), properties:property_id(name), assets:asset_id(name)',
           )
           .eq('is_active', true);
       if (assetId != null) query = query.eq('asset_id', assetId);
@@ -216,7 +226,17 @@ class SupabaseService {
   }
 
   Future<void> createPmSchedule(Map<String, dynamic> data) async {
-    await _client.from('pm_schedules').insert(data);
+    final userId = _client.auth.currentUser?.id;
+    final dataWithCreator = userId != null ? {...data, 'created_by': userId} : data;
+    try {
+      await _client.from('pm_schedules').insert(dataWithCreator);
+    } catch (e) {
+      if (e.toString().contains('created_by')) {
+        await _client.from('pm_schedules').insert(data);
+      } else {
+        rethrow;
+      }
+    }
   }
 
   /// Create multiple PM schedules at once (batch insert)
@@ -398,6 +418,60 @@ class SupabaseService {
   Future<String> uploadFile(String bucket, String path, Uint8List bytes) async {
     await _client.storage.from(bucket).uploadBinary(path, bytes);
     return _client.storage.from(bucket).getPublicUrl(path);
+  }
+
+  // ─── Work Order Comments ─────────────────────────────
+
+  /// Get all comments for a work order (with user info)
+  Future<List<Map<String, dynamic>>> getWorkOrderComments(
+    String workOrderId,
+  ) async {
+    return await _client
+        .from('work_order_comments')
+        .select('*, user:user_id(full_name)')
+        .eq('work_order_id', workOrderId)
+        .order('created_at', ascending: true);
+  }
+
+  /// Add a comment to a work order
+  Future<void> addWorkOrderComment(
+    String workOrderId,
+    String content,
+  ) async {
+    final userId = _client.auth.currentUser?.id;
+    await _client.from('work_order_comments').insert({
+      'work_order_id': workOrderId,
+      'content': content,
+      if (userId != null) 'user_id': userId,
+    });
+  }
+
+  // ─── Property Work Order Status Counts ───────────────
+
+  /// Batch-fetch open/in_progress work order counts for a list of properties
+  /// Returns: { propertyId: { 'open': n, 'in_progress': n } }
+  Future<Map<String, Map<String, int>>> getWorkOrderStatusCountsForProperties(
+    List<String> propertyIds,
+  ) async {
+    if (propertyIds.isEmpty) return {};
+    try {
+      final data = await _client
+          .from('work_orders')
+          .select('property_id, status')
+          .inFilter('property_id', propertyIds)
+          .inFilter('status', ['open', 'in_progress']);
+
+      final result = <String, Map<String, int>>{};
+      for (final row in data) {
+        final propId = row['property_id'] as String;
+        final status = row['status'] as String;
+        result.putIfAbsent(propId, () => {'open': 0, 'in_progress': 0});
+        result[propId]![status] = (result[propId]![status] ?? 0) + 1;
+      }
+      return result;
+    } catch (_) {
+      return {};
+    }
   }
 
   // ─── Dashboard Stats ─────────────────────────────────

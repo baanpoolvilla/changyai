@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/user.dart';
 import '../../models/work_order.dart';
+import '../../models/work_order_comment.dart';
 import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/thai_datetime.dart';
@@ -24,8 +25,14 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
   WorkOrder? _workOrder;
   String? _propertyName;
   String? _technicianName;
+  String? _creatorName;
   bool _loading = true;
   bool _hasExpense = false;
+
+  // Comments
+  List<WorkOrderComment> _comments = [];
+  final _commentController = TextEditingController();
+  bool _addingComment = false;
 
   // For completion photo
   final ImagePicker _picker = ImagePicker();
@@ -38,13 +45,19 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
       final woData = await _service.getWorkOrder(widget.workOrderId);
       _workOrder = WorkOrder.fromJson(woData);
 
-      // Load property, technician, and expense check in parallel
+      // Load property, technician, creator, expense, and comments in parallel
       final futures = <Future>[
         _service
             .getProperty(_workOrder!.propertyId)
@@ -60,6 +73,16 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
             .catchError((_) {
               _hasExpense = false;
             }),
+        _service
+            .getWorkOrderComments(widget.workOrderId)
+            .then((data) {
+              _comments = data
+                  .map((e) => WorkOrderComment.fromJson(e))
+                  .toList();
+            })
+            .catchError((_) {
+              _comments = [];
+            }),
       ];
 
       if (_workOrder!.assignedTo != null) {
@@ -68,6 +91,17 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
               .getUser(_workOrder!.assignedTo!)
               .then((user) {
                 _technicianName = user?['full_name'] as String?;
+              })
+              .catchError((_) {}),
+        );
+      }
+
+      if (_workOrder!.createdBy != null) {
+        futures.add(
+          _service
+              .getUser(_workOrder!.createdBy!)
+              .then((user) {
+                _creatorName = user?['full_name'] as String?;
               })
               .catchError((_) {}),
         );
@@ -276,7 +310,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                   icon: const Icon(Icons.camera_alt),
                   label: Text(
                     _completionImageBytes.isEmpty
-                        ? 'แนบรูปถ่าย *'
+                        ? 'แนบรูปภาพหลังแก้ไข *'
                         : 'เพิ่มรูป (${_completionImageBytes.length})',
                   ),
                 ),
@@ -315,7 +349,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
     );
   }
 
-  /// Upload completion photos and mark as completed
+  /// Upload completion photos to after_photo_urls and mark as completed
   Future<void> _completeWithPhotos({String? notes}) async {
     try {
       // Show loading
@@ -325,34 +359,35 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
         ).showSnackBar(const SnackBar(content: Text('กำลังอัปโหลดรูปภาพ...')));
       }
 
-      // Upload images in parallel
-      final photoUrls = <String>[..._workOrder?.photoUrls ?? []];
+      // Upload completion images → saved as after_photo_urls (separate from before photos)
+      final afterPhotoUrls = <String>[];
       final uploadFutures = <Future<String?>>[];
       for (int i = 0; i < _completionImageBytes.length; i++) {
         final bytes = _completionImageBytes[i];
         final ext = _completionImages[i].name.split('.').last;
         final path =
-            'work-orders/complete_${DateTime.now().millisecondsSinceEpoch}_$i.$ext';
+            'work-orders/after_${DateTime.now().millisecondsSinceEpoch}_$i.$ext';
         uploadFutures.add(
           _service
               .uploadFile('photos', path, bytes)
               .then<String?>((url) => url)
               .catchError((_) {
-                debugPrint('Upload completion image $i failed');
+                debugPrint('Upload after-photo $i failed');
                 return null;
               }),
         );
       }
       final uploadResults = await Future.wait(uploadFutures);
       for (final url in uploadResults) {
-        if (url != null) photoUrls.add(url);
+        if (url != null) afterPhotoUrls.add(url);
       }
 
-      // Update work order: status + photos + completion notes
+      // Update work order: status + after_photo_urls + completion notes
+      // Note: photo_urls (before photos) remain untouched
       await _service.updateWorkOrder(widget.workOrderId, {
         'status': 'completed',
         'completed_at': DateTime.now().toIso8601String(),
-        'photo_urls': photoUrls,
+        if (afterPhotoUrls.isNotEmpty) 'after_photo_urls': afterPhotoUrls,
         if (notes != null && notes.isNotEmpty) 'completion_notes': notes,
       });
 
@@ -377,6 +412,24 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
         ).showSnackBar(SnackBar(content: Text('อัปเดตล้มเหลว: $e')));
       }
     }
+  }
+
+  Future<void> _addComment() async {
+    final content = _commentController.text.trim();
+    if (content.isEmpty) return;
+    setState(() => _addingComment = true);
+    try {
+      await _service.addWorkOrderComment(widget.workOrderId, content);
+      _commentController.clear();
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('เพิ่มความคิดเห็นล้มเหลว: $e')),
+        );
+      }
+    }
+    if (mounted) setState(() => _addingComment = false);
   }
 
   @override
@@ -440,9 +493,17 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                     if (_propertyName != null)
                       _infoRow(Icons.home, 'บ้าน', _propertyName!),
 
+                    // Created by
+                    if (_creatorName != null)
+                      _infoRow(
+                        Icons.person_add_alt_1,
+                        'สร้างโดย',
+                        _creatorName!,
+                      ),
+
                     // Responsible person
                     if (_technicianName != null)
-                      _infoRow(Icons.person, 'รับผิดชอบโดย', _technicianName!),
+                      _infoRow(Icons.engineering, 'รับผิดชอบโดย', _technicianName!),
 
                     // Priority
                     _infoRow(
@@ -488,7 +549,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
               ),
             ),
 
-            // Photos
+            // ─── ภาพก่อนแก้ไข ────────────────────────────────
             if (wo.photoUrls.isNotEmpty) ...[
               const SizedBox(height: 16),
               Card(
@@ -497,9 +558,16 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'รูปภาพ (${wo.photoUrls.length})',
-                        style: theme.textTheme.titleMedium,
+                      Row(
+                        children: [
+                          const Icon(Icons.photo_library_outlined,
+                              size: 18, color: Colors.blueGrey),
+                          const SizedBox(width: 8),
+                          Text(
+                            'ภาพก่อนแก้ไข (${wo.photoUrls.length})',
+                            style: theme.textTheme.titleMedium,
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 12),
                       SizedBox(
@@ -507,11 +575,14 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: wo.photoUrls.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 8),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 8),
                           itemBuilder: (context, index) {
                             return GestureDetector(
-                              onTap: () =>
-                                  _showFullImage(context, wo.photoUrls[index]),
+                              onTap: () => _showFullImage(
+                                context,
+                                wo.photoUrls[index],
+                              ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: Image.network(
@@ -519,7 +590,71 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                                   width: 150,
                                   height: 150,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => const SizedBox(
+                                  errorBuilder: (_, __, ___) =>
+                                      const SizedBox(
+                                    width: 150,
+                                    height: 150,
+                                    child: Center(
+                                      child: Icon(Icons.broken_image),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+
+            // ─── ภาพหลังแก้ไข ────────────────────────────────
+            if (wo.afterPhotoUrls.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.check_circle_outline,
+                              size: 18, color: Colors.green),
+                          const SizedBox(width: 8),
+                          Text(
+                            'ภาพหลังแก้ไข (${wo.afterPhotoUrls.length})',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: Colors.green.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 150,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: wo.afterPhotoUrls.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 8),
+                          itemBuilder: (context, index) {
+                            return GestureDetector(
+                              onTap: () => _showFullImage(
+                                context,
+                                wo.afterPhotoUrls[index],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  wo.afterPhotoUrls[index],
+                                  width: 150,
+                                  height: 150,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      const SizedBox(
                                     width: 150,
                                     height: 150,
                                     child: Center(
@@ -557,6 +692,90 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
             ],
 
             const SizedBox(height: 24),
+
+            // ─── Comment Section ─────────────────────────────
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.comment_outlined,
+                            size: 18, color: Colors.blueGrey),
+                        const SizedBox(width: 8),
+                        Text(
+                          'ความคิดเห็น (${_comments.length})',
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // List of comments
+                    if (_comments.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          'ยังไม่มีความคิดเห็น',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    else
+                      for (int i = 0; i < _comments.length; i++) ...[
+                        _buildCommentItem(_comments[i]),
+                        if (i < _comments.length - 1)
+                          const Divider(height: 16),
+                      ],
+
+                    const SizedBox(height: 12),
+                    const Divider(),
+                    const SizedBox(height: 8),
+
+                    // Add comment input
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _commentController,
+                            decoration: const InputDecoration(
+                              hintText: 'เพิ่มความคิดเห็น...',
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                            ),
+                            maxLines: null,
+                            minLines: 1,
+                            textInputAction: TextInputAction.newline,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _addingComment
+                            ? const SizedBox(
+                                width: 40,
+                                height: 40,
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2),
+                                ),
+                              )
+                            : IconButton.filled(
+                                onPressed: _addComment,
+                                icon: const Icon(Icons.send),
+                                tooltip: 'ส่งความคิดเห็น',
+                              ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
 
             // Expense button for completed work orders (hidden for technicians, hidden if expense already exists)
             if (wo.status == WorkOrderStatus.completed &&
@@ -628,6 +847,41 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildCommentItem(WorkOrderComment comment) {
+    final userName = comment.userName ?? 'ผู้ใช้';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.account_circle, size: 16, color: Colors.grey),
+              const SizedBox(width: 6),
+              Text(
+                userName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                formatThaiDateTime(comment.createdAt),
+                style: const TextStyle(color: Colors.grey, fontSize: 11),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.only(left: 22),
+            child: Text(comment.content, style: const TextStyle(fontSize: 14)),
+          ),
+        ],
       ),
     );
   }
@@ -710,7 +964,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
           Icon(icon, size: 20, color: Colors.grey),
           const SizedBox(width: 12),
           SizedBox(
-            width: 100,
+            width: 110,
             child: Text(
               label,
               style: const TextStyle(color: Colors.grey, fontSize: 14),

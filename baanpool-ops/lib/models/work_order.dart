@@ -15,6 +15,7 @@ class WorkOrder {
   final DateTime? completedAt;
   final String? completionNotes;
   final List<String> photoUrls;
+  final List<String> afterPhotoUrls;
   final DateTime createdAt;
 
   const WorkOrder({
@@ -31,6 +32,7 @@ class WorkOrder {
     this.completedAt,
     this.completionNotes,
     this.photoUrls = const [],
+    this.afterPhotoUrls = const [],
     required this.createdAt,
   });
 
@@ -54,6 +56,11 @@ class WorkOrder {
       completionNotes: json['completion_notes'] as String?,
       photoUrls:
           (json['photo_urls'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+      afterPhotoUrls:
+          (json['after_photo_urls'] as List<dynamic>?)
               ?.map((e) => e as String)
               .toList() ??
           [],

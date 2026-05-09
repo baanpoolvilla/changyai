@@ -16,6 +16,7 @@ class Expense {
   final DateTime expenseDate;
   final DateTime createdAt;
   final bool isNoExpense;
+  final String? createdByName; // joined from users table
 
   const Expense({
     required this.id,
@@ -32,9 +33,14 @@ class Expense {
     required this.expenseDate,
     required this.createdAt,
     this.isNoExpense = false,
+    this.createdByName,
   });
 
   factory Expense.fromJson(Map<String, dynamic> json) {
+    String? creatorName;
+    if (json['creator'] is Map) {
+      creatorName = json['creator']['full_name'] as String?;
+    }
     return Expense(
       id: json['id'] as String,
       workOrderId: json['work_order_id'] as String?,
@@ -50,6 +56,7 @@ class Expense {
       expenseDate: DateTime.parse(json['expense_date'] as String),
       createdAt: parseServerTimestampToThai(json['created_at'] as String),
       isNoExpense: json['is_no_expense'] as bool? ?? false,
+      createdByName: creatorName,
     );
   }
 

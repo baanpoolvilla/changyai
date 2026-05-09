@@ -13,6 +13,7 @@ class PmSchedule {
   final bool isActive;
   final String? assignedTo;
   final String? assignedToName; // joined from users table
+  final String? createdByName; // joined from users table (creator)
   final String? propertyName; // joined from properties table
   final String? assetName; // joined from assets table
   final DateTime createdAt;
@@ -29,16 +30,23 @@ class PmSchedule {
     this.isActive = true,
     this.assignedTo,
     this.assignedToName,
+    this.createdByName,
     this.propertyName,
     this.assetName,
     required this.createdAt,
   });
 
   factory PmSchedule.fromJson(Map<String, dynamic> json) {
-    // Handle joined user data
+    // Handle joined user data (assigned to)
     String? techName;
     if (json['users'] is Map) {
       techName = json['users']['full_name'] as String?;
+    }
+
+    // Handle joined creator data
+    String? creatorName;
+    if (json['creator'] is Map) {
+      creatorName = json['creator']['full_name'] as String?;
     }
 
     // Handle joined property data
@@ -67,6 +75,7 @@ class PmSchedule {
       isActive: json['is_active'] as bool? ?? true,
       assignedTo: json['assigned_to'] as String?,
       assignedToName: techName,
+      createdByName: creatorName,
       propertyName: propName,
       assetName: aName,
       createdAt: parseServerTimestampToThai(json['created_at'] as String),

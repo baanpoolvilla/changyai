@@ -584,10 +584,13 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
                           _getPmTitle(e.pmScheduleId) ??
                           e.costType.displayName)
                       : _categoryLabel(e.category);
+                  final creator = e.createdByName != null
+                      ? ' • บันทึกโดย ${e.createdByName}'
+                      : '';
                   return '$ref • ${formatThaiDate(e.expenseDate)}'
                       ' • ${e.costType.displayName}'
                       ' • ${e.paidBy.displayName}'
-                      ' • บันทึกเมื่อ ${formatThaiDateTime(e.createdAt)}';
+                      '$creator';
                 }(),
                 style: theme.textTheme.bodySmall,
               ),

@@ -666,6 +666,8 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                     formatThaiDate(s.nextDueDate),
                   ),
                   _chip(Icons.schedule, 'สร้างเมื่อ ${formatThaiDateTime(s.createdAt)}'),
+                  if (s.createdByName != null)
+                    _chip(Icons.person_add_alt_1, 'สร้างโดย ${s.createdByName!}'),
                   if (s.assignedToName != null)
                     _chip(Icons.person, s.assignedToName!),
                   if (assetName != null) _chip(Icons.build, assetName),

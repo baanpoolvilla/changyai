@@ -17,6 +17,7 @@ class _PropertiesListScreenState extends State<PropertiesListScreen> {
   final _authState = AuthStateService();
   List<Property> _properties = [];
   Map<String, String> _categoryNames = {};
+  Map<String, Map<String, int>> _workOrderStatusCounts = {};
   bool _loading = true;
 
   @override
@@ -31,6 +32,13 @@ class _PropertiesListScreenState extends State<PropertiesListScreen> {
       final data = await _service.getProperties();
       _properties = data.map((e) => Property.fromJson(e)).toList();
       _categoryNames = await _service.getPropertyCategories();
+
+      // Load work order status counts for all properties
+      if (_properties.isNotEmpty) {
+        final propIds = _properties.map((p) => p.id).toList();
+        _workOrderStatusCounts =
+            await _service.getWorkOrderStatusCountsForProperties(propIds);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -172,6 +180,70 @@ class _PropertiesListScreenState extends State<PropertiesListScreen> {
     );
   }
 
+  /// Build a colored status dot for a property based on its work order statuses
+  /// 🟢 Green = no active work orders
+  /// 🟡 Yellow = has in_progress work orders
+  /// 🔴 Red = has open (not started) work orders
+  Widget _buildStatusDot(String propertyId) {
+    final counts = _workOrderStatusCounts[propertyId];
+    final inProgressCount = counts?['in_progress'] ?? 0;
+    final openCount = counts?['open'] ?? 0;
+
+    Color color;
+    String tooltip;
+    int count;
+
+    if (inProgressCount > 0) {
+      color = Colors.amber.shade600;
+      tooltip = 'กำลังดำเนินการ $inProgressCount ใบงาน';
+      count = inProgressCount;
+    } else if (openCount > 0) {
+      color = Colors.red;
+      tooltip = 'รอดำเนินการ $openCount ใบงาน';
+      count = openCount;
+    } else {
+      color = Colors.green;
+      tooltip = 'ไม่มีใบงานค้าง';
+      count = 0;
+    }
+
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.5)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+              ),
+            ),
+            if (count > 0) ...[
+              const SizedBox(width: 4),
+              Text(
+                '$count',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildGroupedList(ThemeData theme) {
     final grouped = _groupProperties();
 
@@ -240,7 +312,14 @@ class _PropertiesListScreenState extends State<PropertiesListScreen> {
                       ? 'ผู้จัดการ: ${p.caretakerName}'
                       : 'ไม่มีผู้จัดการ',
                 ),
-                trailing: const Icon(Icons.chevron_right),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildStatusDot(p.id),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right),
+                  ],
+                ),
                 onTap: () async {
                   await context.push('/properties/${p.id}');
                   _load();
