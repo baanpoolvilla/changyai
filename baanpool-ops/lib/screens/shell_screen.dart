@@ -139,12 +139,67 @@ class _ShellScreenState extends State<ShellScreen> {
   @override
   Widget build(BuildContext context) {
     final navItems = _getNavItems();
-    final currentIdx = _currentIndex(context, navItems);
+    final currentIdx = _currentIndex(context, navItems).clamp(0, navItems.length - 1);
+    final isDesktop = MediaQuery.of(context).size.width >= 720;
 
+    if (isDesktop) {
+      return Scaffold(
+        body: Row(
+          children: [
+            NavigationRail(
+              selectedIndex: currentIdx,
+              onDestinationSelected: (index) {
+                context.go(navItems[index].path);
+              },
+              labelType: NavigationRailLabelType.all,
+              leading: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Image.asset(
+                  'assets/logo.png',
+                  width: 36,
+                  errorBuilder: (_, __, ___) => const Icon(Icons.home_work, size: 32),
+                ),
+              ),
+              minWidth: 88,
+              groupAlignment: -1,
+              destinations: navItems.map((item) {
+                final icon = item.badgeCount > 0
+                    ? Badge(
+                        label: Text(
+                          item.badgeCount > 99 ? '99+' : '${item.badgeCount}',
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                        child: Icon(item.icon),
+                      )
+                    : Icon(item.icon);
+                final selectedIcon = item.badgeCount > 0
+                    ? Badge(
+                        label: Text(
+                          item.badgeCount > 99 ? '99+' : '${item.badgeCount}',
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                        child: Icon(item.selectedIcon),
+                      )
+                    : Icon(item.selectedIcon);
+                return NavigationRailDestination(
+                  icon: icon,
+                  selectedIcon: selectedIcon,
+                  label: Text(item.label),
+                );
+              }).toList(),
+            ),
+            const VerticalDivider(thickness: 1, width: 1),
+            Expanded(child: widget.child),
+          ],
+        ),
+      );
+    }
+
+    // Mobile: bottom navigation bar
     return Scaffold(
       body: widget.child,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: currentIdx.clamp(0, navItems.length - 1),
+        selectedIndex: currentIdx,
         onDestinationSelected: (index) {
           context.go(navItems[index].path);
         },
