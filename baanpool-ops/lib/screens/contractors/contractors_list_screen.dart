@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/contractor.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/page_wrapper.dart';
 
 /// รายชื่อติดต่อ (Contact)
 class ContractorsListScreen extends StatefulWidget {
@@ -283,13 +284,15 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
             )
           : RefreshIndicator(
               onRefresh: _load,
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _contractors.length,
-                itemBuilder: (context, index) {
-                  final c = _contractors[index];
-                  return _buildContractorCard(c, theme);
-                },
+              child: PageWrapper(
+                child: ListView.builder(
+                  padding: EdgeInsets.zero,
+                  itemCount: _contractors.length,
+                  itemBuilder: (context, index) {
+                    final c = _contractors[index];
+                    return _buildContractorCard(c, theme);
+                  },
+                ),
               ),
             ),
       floatingActionButton: FloatingActionButton.extended(

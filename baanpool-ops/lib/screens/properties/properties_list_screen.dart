@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/property.dart';
 import '../../services/supabase_service.dart';
 import '../../services/auth_state_service.dart';
+import '../../utils/page_wrapper.dart';
 
 class PropertiesListScreen extends StatefulWidget {
   const PropertiesListScreen({super.key});
@@ -169,7 +170,7 @@ class _PropertiesListScreenState extends State<PropertiesListScreen> {
                 ],
               ),
             )
-          : RefreshIndicator(onRefresh: _load, child: _buildGroupedList(theme)),
+          : RefreshIndicator(onRefresh: _load, child: PageWrapper(child: _buildGroupedList(theme))),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           await context.push('/properties/new');
@@ -248,7 +249,7 @@ class _PropertiesListScreenState extends State<PropertiesListScreen> {
     final grouped = _groupProperties();
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.zero,
       children: [
         for (final entry in grouped.entries) ...[
           // Category header

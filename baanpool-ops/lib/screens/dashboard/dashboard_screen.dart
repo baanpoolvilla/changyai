@@ -5,6 +5,7 @@ import '../../app/theme.dart';
 import '../../services/auth_state_service.dart';
 import '../../services/line_notify_service.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/page_wrapper.dart';
 
 /// Dashboard — งานด่วน, งานวันนี้, PM ใกล้ครบ, ใบงานล่าสุด
 class DashboardScreen extends StatefulWidget {
@@ -125,75 +126,96 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _load,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  // Summary Cards Row 1
-                  Row(
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: PageWrapper(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: _SummaryCard(
-                          title: 'งานด่วน',
-                          value: '$_urgentCount',
-                          icon: Icons.warning_amber_rounded,
-                          color: AppTheme.urgentColor,
-                          onTap: () => context.go('/work-orders?filter=urgent'),
-                        ),
+                      // Summary Cards: 4 in a row on desktop, 2x2 on mobile
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isWide = constraints.maxWidth >= 600;
+                          if (isWide) {
+                            return Row(
+                              children: [
+                                Expanded(child: _SummaryCard(
+                                  title: 'งานด่วน', value: '$_urgentCount',
+                                  icon: Icons.warning_amber_rounded, color: AppTheme.urgentColor,
+                                  onTap: () => context.go('/work-orders?filter=urgent'),
+                                )),
+                                const SizedBox(width: 12),
+                                Expanded(child: _SummaryCard(
+                                  title: 'งานใหม่วันนี้', value: '$_todayCount',
+                                  icon: Icons.today, color: AppTheme.primaryColor,
+                                  onTap: () => context.go('/work-orders?filter=today'),
+                                )),
+                                const SizedBox(width: 12),
+                                Expanded(child: _SummaryCard(
+                                  title: 'PM ใกล้ครบกำหนด', value: '$_pmDueSoonCount',
+                                  icon: Icons.schedule, color: AppTheme.warningColor,
+                                  onTap: () => context.go('/pm'),
+                                )),
+                                const SizedBox(width: 12),
+                                Expanded(child: _SummaryCard(
+                                  title: 'ยังไม่บันทึกค่าใช้จ่าย', value: '$_noExpenseCount',
+                                  icon: Icons.receipt_long, color: Colors.red,
+                                  onTap: () => context.go('/work-orders?filter=no-expense'),
+                                )),
+                              ],
+                            );
+                          }
+                          return Column(
+                            children: [
+                              Row(children: [
+                                Expanded(child: _SummaryCard(
+                                  title: 'งานด่วน', value: '$_urgentCount',
+                                  icon: Icons.warning_amber_rounded, color: AppTheme.urgentColor,
+                                  onTap: () => context.go('/work-orders?filter=urgent'),
+                                )),
+                                const SizedBox(width: 12),
+                                Expanded(child: _SummaryCard(
+                                  title: 'งานใหม่วันนี้', value: '$_todayCount',
+                                  icon: Icons.today, color: AppTheme.primaryColor,
+                                  onTap: () => context.go('/work-orders?filter=today'),
+                                )),
+                              ]),
+                              const SizedBox(height: 12),
+                              Row(children: [
+                                Expanded(child: _SummaryCard(
+                                  title: 'PM ใกล้ครบกำหนด', value: '$_pmDueSoonCount',
+                                  icon: Icons.schedule, color: AppTheme.warningColor,
+                                  onTap: () => context.go('/pm'),
+                                )),
+                                const SizedBox(width: 12),
+                                Expanded(child: _SummaryCard(
+                                  title: 'ยังไม่บันทึกค่าใช้จ่าย', value: '$_noExpenseCount',
+                                  icon: Icons.receipt_long, color: Colors.red,
+                                  onTap: () => context.go('/work-orders?filter=no-expense'),
+                                )),
+                              ]),
+                            ],
+                          );
+                        },
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _SummaryCard(
-                          title: 'งานใหม่วันนี้',
-                          value: '$_todayCount',
-                          icon: Icons.today,
-                          color: AppTheme.primaryColor,
-                          onTap: () => context.go('/work-orders?filter=today'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _SummaryCard(
-                          title: 'PM ใกล้ครบกำหนด',
-                          value: '$_pmDueSoonCount',
-                          icon: Icons.schedule,
-                          color: AppTheme.warningColor,
-                          onTap: () => context.go('/pm'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _SummaryCard(
-                          title: 'ยังไม่บันทึกค่าใช้จ่าย',
-                          value: '$_noExpenseCount',
-                          icon: Icons.receipt_long,
-                          color: Colors.red,
-                          onTap: () => context.go('/work-orders?filter=no-expense'),
-                        ),
-                      ),
-                    ],
-                  ),
 
-                  const SizedBox(height: 24),
+                      const SizedBox(height: 24),
 
-                  // Recent Work Orders
-                  _SectionHeader(
-                    title: 'งานล่าสุด',
-                    onSeeAll: () => context.go('/work-orders'),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_recentWorkOrders.isEmpty)
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Center(
-                          child: Text(
-                            'ยังไม่มีใบงาน',
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.bodyMedium?.copyWith(
+                      // Recent Work Orders
+                      _SectionHeader(
+                        title: 'งานล่าสุด',
+                        onSeeAll: () => context.go('/work-orders'),
+                      ),
+                      const SizedBox(height: 8),
+                      if (_recentWorkOrders.isEmpty)
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Center(
+                              child: Text(
+                                'ยังไม่มีใบงาน',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.bodyMedium?.copyWith(
                               color: Colors.grey,
                             ),
                           ),
@@ -246,7 +268,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       );
                     })),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
     );

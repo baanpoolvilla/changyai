@@ -5,6 +5,7 @@ import '../../models/work_order.dart';
 import '../../services/supabase_service.dart';
 import '../../services/auth_state_service.dart';
 import '../../utils/thai_datetime.dart';
+import '../../utils/page_wrapper.dart';
 
 class WorkOrdersListScreen extends StatefulWidget {
   /// Optional initial filter: 'today' | 'urgent' | null
@@ -200,45 +201,18 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen> {
             )
           : RefreshIndicator(
               onRefresh: _load,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isWide = constraints.maxWidth >= 720;
-                  if (isWide) {
-                    // Desktop: 2-column grid with centered max-width
-                    return Align(
-                      alignment: Alignment.topCenter,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 1200),
-                        child: GridView.builder(
-                          padding: const EdgeInsets.all(24),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
-                            childAspectRatio: 2.8,
-                          ),
-                          itemCount: _workOrders.length,
-                          itemBuilder: (context, index) {
-                            final wo = _workOrders[index];
-                            return _buildWorkOrderCard(wo, theme);
-                          },
-                        ),
-                      ),
+              child: PageWrapper(
+                child: ListView.builder(
+                  padding: EdgeInsets.zero,
+                  itemCount: _workOrders.length,
+                  itemBuilder: (context, index) {
+                    final wo = _workOrders[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _buildWorkOrderCard(wo, theme),
                     );
-                  }
-                  // Mobile: single-column list
-                  return ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _workOrders.length,
-                    itemBuilder: (context, index) {
-                      final wo = _workOrders[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildWorkOrderCard(wo, theme),
-                      );
-                    },
-                  );
-                },
+                  },
+                ),
               ),
             ),
       floatingActionButton: FloatingActionButton.extended(
@@ -259,7 +233,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen> {
     final hasExpense = _workOrderIdsWithExpense.contains(wo.id);
 
     return Card(
-      margin: EdgeInsets.zero,
+      margin: const EdgeInsets.only(bottom: 0),
       color: isNew ? Colors.red.shade50 : null,
       shape: isNew
           ? RoundedRectangleBorder(

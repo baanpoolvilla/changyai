@@ -143,24 +143,29 @@ class _ShellScreenState extends State<ShellScreen> {
     final isDesktop = MediaQuery.of(context).size.width >= 720;
 
     if (isDesktop) {
+      final isWide = MediaQuery.of(context).size.width >= 1200;
       return Scaffold(
         body: Row(
           children: [
             NavigationRail(
+              extended: isWide,
               selectedIndex: currentIdx,
               onDestinationSelected: (index) {
                 context.go(navItems[index].path);
               },
-              labelType: NavigationRailLabelType.all,
+              labelType: isWide
+                  ? NavigationRailLabelType.none
+                  : NavigationRailLabelType.all,
               leading: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Image.asset(
                   'assets/logo.png',
-                  width: 36,
-                  errorBuilder: (_, __, ___) => const Icon(Icons.home_work, size: 32),
+                  width: isWide ? 40 : 32,
+                  errorBuilder: (_, __, ___) => Icon(Icons.home_work, size: isWide ? 40 : 28),
                 ),
               ),
-              minWidth: 88,
+              minWidth: 72,
+              minExtendedWidth: 200,
               groupAlignment: -1,
               destinations: navItems.map((item) {
                 final icon = item.badgeCount > 0

@@ -6,6 +6,7 @@ import '../../models/user.dart';
 import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/thai_datetime.dart';
+import '../../utils/page_wrapper.dart';
 
 class PmScheduleScreen extends StatefulWidget {
   const PmScheduleScreen({super.key});
@@ -532,13 +533,15 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
             )
           : RefreshIndicator(
               onRefresh: _load,
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-                itemCount: _schedules.length,
-                itemBuilder: (context, index) {
-                  final s = _schedules[index];
-                  return _buildScheduleCard(s);
-                },
+              child: PageWrapper(
+                child: ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 80),
+                  itemCount: _schedules.length,
+                  itemBuilder: (context, index) {
+                    final s = _schedules[index];
+                    return _buildScheduleCard(s);
+                  },
+                ),
               ),
             ),
       floatingActionButton: FloatingActionButton.extended(

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/expense.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/thai_datetime.dart';
+import '../../utils/page_wrapper.dart';
 import '../../utils/csv_downloader.dart'
     if (dart.library.html) '../../utils/csv_downloader_web.dart';
 
@@ -348,18 +349,20 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
                         )
                       : RefreshIndicator(
                           onRefresh: _loadData,
-                          child: ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
-                            itemCount: _expensesByProperty.length,
-                            itemBuilder: (context, index) {
-                              final entry = _expensesByProperty.entries
-                                  .elementAt(index);
-                              return _buildPropertyCard(
-                                theme,
-                                entry.key,
-                                entry.value,
-                              );
-                            },
+                          child: PageWrapper(
+                            child: ListView.builder(
+                              padding: const EdgeInsets.only(bottom: 80),
+                              itemCount: _expensesByProperty.length,
+                              itemBuilder: (context, index) {
+                                final entry = _expensesByProperty.entries
+                                    .elementAt(index);
+                                return _buildPropertyCard(
+                                  theme,
+                                  entry.key,
+                                  entry.value,
+                                );
+                              },
+                            ),
                           ),
                         ),
                 ),
