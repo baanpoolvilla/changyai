@@ -597,7 +597,7 @@ class _PurchaseOrderDetailScreenState
                             children: [
                               Expanded(
                                 child: FilledButton.icon(
-                                  onPressed: _approveAndCreateExpense,
+                                  onPressed: _approveWithPricing,
                                   icon: const Icon(Icons.check),
                                   label: const Text('อนุมัติ'),  
                                   style: FilledButton.styleFrom(
