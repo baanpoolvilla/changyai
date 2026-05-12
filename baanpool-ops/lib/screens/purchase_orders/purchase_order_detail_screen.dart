@@ -79,6 +79,44 @@ class _PurchaseOrderDetailScreenState
     if (mounted) setState(() => _actionLoading = false);
   }
 
+  /// อนุมัติ PO และสร้างค่าใช้จ่ายในระบบอัตโนมัติ
+  Future<void> _approveAndCreateExpense() async {
+    setState(() => _actionLoading = true);
+    try {
+      final now = DateTime.now();
+      await _service.updatePurchaseOrder(widget.orderId, {
+        'status': 'approved',
+        'updated_at': now.toIso8601String(),
+      });
+      // สร้าง expense record อัตโนมัติ
+      if (_order != null && _order!.totalPrice > 0) {
+        await _service.createExpense({
+          'property_id': _order!.propertyId,
+          'amount': _order!.totalPrice,
+          'description': 'สั่งซื้ออุปกรณ์: ${_order!.title}',
+          'category': 'material',
+          'cost_type': 'work_order',
+          'paid_by': 'company',
+          'billable_to_partner': false,
+          'is_no_expense': false,
+          'expense_date': now.toIso8601String(),
+        });
+      }
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('อนุมัติแล้ว และบันทึกค่าใช้จ่ายเรียบร้อย')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('อนุมัติล้มเหลว: $e')));
+      }
+    }
+    if (mounted) setState(() => _actionLoading = false);
+  }
+
   Future<void> _uploadReceiptAndReceive() async {
     final picker = ImagePicker();
     final xFile = await picker.pickImage(
@@ -120,7 +158,7 @@ class _PurchaseOrderDetailScreenState
     final theme = Theme.of(context);
     final role = _authState.currentRole;
     final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-    final isCeo = role == UserRole.owner;
+    final isCeo = role == UserRole.owner || role == UserRole.admin;
     final isCreator = _order?.createdBy == currentUserId;
 
     return Scaffold(
@@ -323,16 +361,16 @@ class _PurchaseOrderDetailScreenState
                         const Center(child: CircularProgressIndicator())
                       else ...[
                         // CEO: approve pending PO
+                        // CEO / Super Admin: approve pending PO
                         if (isCeo &&
                             _order!.status == POStatus.pending) ...[
                           Row(
                             children: [
                               Expanded(
                                 child: FilledButton.icon(
-                                  onPressed: () =>
-                                      _updateStatus('approved'),
+                                  onPressed: _approveAndCreateExpense,
                                   icon: const Icon(Icons.check),
-                                  label: const Text('อนุมัติ'),
+                                  label: const Text('อนุมัติ'),  
                                   style: FilledButton.styleFrom(
                                       backgroundColor: Colors.green),
                                 ),

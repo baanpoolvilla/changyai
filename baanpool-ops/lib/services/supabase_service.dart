@@ -421,9 +421,37 @@ class SupabaseService {
 
   // ─── Storage ──────────────────────────────────────────
 
-  Future<String> uploadFile(String bucket, String path, Uint8List bytes) async {
-    await _client.storage.from(bucket).uploadBinary(path, bytes);
+  Future<String> uploadFile(
+    String bucket,
+    String path,
+    Uint8List bytes, {
+    String? contentType,
+  }) async {
+    await _client.storage.from(bucket).uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(
+            contentType: contentType ?? _mimeFromPath(path),
+          ),
+        );
     return _client.storage.from(bucket).getPublicUrl(path);
+  }
+
+  static String _mimeFromPath(String path) {
+    final ext = path.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'heic':
+        return 'image/heic';
+      default:
+        return 'image/jpeg';
+    }
   }
 
   // ─── Work Order Comments ─────────────────────────────
