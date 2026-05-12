@@ -201,8 +201,6 @@ final appRouter = GoRouter(
             ),
           ],
         ),
-      ],
-    ),
 
         // Purchase Orders
         GoRoute(
