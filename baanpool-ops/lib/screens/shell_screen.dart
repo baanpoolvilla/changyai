@@ -76,7 +76,7 @@ class _ShellScreenState extends State<ShellScreen> {
     }
 
     // Quick Expense — caretaker + manager บันทึกค่าใช้จ่ายเล็กน้อยเอง
-    if (_authState.isCaretaker || _authState.isManager) {
+    if (_authState.isCaretaker || _authState.isManager || isAdmin) {
       items.add(
         _NavItem(
           path: '/quick-expense',
