@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/purchase_order.dart';
@@ -117,6 +118,45 @@ class _PurchaseOrderDetailScreenState
     if (mounted) setState(() => _actionLoading = false);
   }
 
+  Future<void> _deletePo() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ลบคำสั่งซื้อ'),
+        content: Text('ต้องการลบ "${_order!.title}" ใช่หรือไม่?\nไม่สามารถกู้คืนได้'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('ยกเลิก'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('ลบ'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _actionLoading = true);
+    try {
+      await _service.deletePurchaseOrder(widget.orderId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ลบคำสั่งซื้อเรียบร้อยแล้ว')),
+        );
+        context.go('/purchase-orders');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('ลบล้มเหลว: $e')));
+        setState(() => _actionLoading = false);
+      }
+    }
+  }
+
   Future<void> _uploadReceiptAndReceive() async {
     final picker = ImagePicker();
     final xFile = await picker.pickImage(
@@ -161,8 +201,20 @@ class _PurchaseOrderDetailScreenState
     final isCeo = role == UserRole.owner || role == UserRole.admin;
     final isCreator = _order?.createdBy == currentUserId;
 
+    final isAdmin = role == UserRole.admin;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('รายละเอียดคำสั่งซื้อ')),
+      appBar: AppBar(
+        title: const Text('รายละเอียดคำสั่งซื้อ'),
+        actions: [
+          if (isAdmin && _order != null)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              tooltip: 'ลบคำสั่งซื้อ',
+              onPressed: _actionLoading ? null : _deletePo,
+            ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _order == null
