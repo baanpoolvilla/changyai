@@ -20,6 +20,9 @@ import '../screens/admin/roles_management_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
 import '../screens/contractors/contractors_list_screen.dart';
 import '../screens/contractors/contractor_detail_screen.dart';
+import '../screens/purchase_orders/purchase_orders_list_screen.dart';
+import '../screens/purchase_orders/purchase_order_form_screen.dart';
+import '../screens/purchase_orders/purchase_order_detail_screen.dart';
 import '../screens/shell_screen.dart';
 import '../services/auth_state_service.dart';
 
@@ -194,6 +197,26 @@ final appRouter = GoRouter(
               path: ':id',
               builder: (context, state) => ContractorDetailScreen(
                 contractorId: state.pathParameters['id']!,
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+
+        // Purchase Orders
+        GoRoute(
+          path: '/purchase-orders',
+          builder: (context, state) => const PurchaseOrdersListScreen(),
+          routes: [
+            GoRoute(
+              path: 'new',
+              builder: (context, state) => const PurchaseOrderFormScreen(),
+            ),
+            GoRoute(
+              path: ':id',
+              builder: (context, state) => PurchaseOrderDetailScreen(
+                orderId: state.pathParameters['id']!,
               ),
             ),
           ],

@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../app/theme.dart';
 import '../../services/auth_state_service.dart';
-import '../../services/line_notify_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/page_wrapper.dart';
 
@@ -25,6 +24,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _noExpenseCount = 0;
   List<Map<String, dynamic>> _recentWorkOrders = [];
   Map<String, String> _propertyNames = {};
+  List<Map<String, dynamic>> _allProperties = [];
+  Map<String, Map<String, int>> _propertyWoStatus = {};
 
   @override
   void initState() {
@@ -49,31 +50,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final allProperties = results[3] as List<Map<String, dynamic>>;
       _noExpenseCount = results[4] as int;
 
+      _allProperties = allProperties;
       _propertyNames = {
         for (final p in allProperties) p['id'] as String: p['name'] as String,
       };
+
+      // Property work order status (for status board)
+      final propIds = allProperties.map((p) => p['id'] as String).toList();
+      _propertyWoStatus = await _service
+          .getWorkOrderStatusCountsForProperties(propIds);
 
       // PM due soon — wrapped in try/catch because migration_003 might not be run
       try {
         final pmData = await _service.getPmSchedules(dueSoon: true);
         _pmDueSoonCount = pmData.length;
-
-        // Trigger PM notifications check (LINE + in-app) in background
-        if (_pmDueSoonCount > 0) {
-          LineNotifyService().checkAndNotifyPmDueSchedules();
-        }
       } catch (_) {
         _pmDueSoonCount = 0;
-      }
-
-      // Check for completed work orders missing expenses → LINE reminder
-      try {
-        final now = DateTime.now();
-        if (now.hour >= 17) {
-          LineNotifyService().checkAndNotifyMissingExpenses();
-        }
-      } catch (_) {
-        // Ignore errors from expense reminder check
       }
     } catch (e) {
       if (mounted) {
@@ -201,6 +193,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                       const SizedBox(height: 24),
 
+                      // Property Status Board
+                      _SectionHeader(
+                        title: 'สถานะบ้าน',
+                        onSeeAll: () => context.go('/work-orders'),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildPropertyStatusBoard(theme),
+
+                      const SizedBox(height: 24),
+
                       // Recent Work Orders
                       _SectionHeader(
                         title: 'งานล่าสุด',
@@ -273,6 +275,75 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _buildPropertyStatusBoard(ThemeData theme) {
+    if (_allProperties.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: _allProperties.map((p) {
+        final id = p['id'] as String;
+        final name = p['name'] as String;
+        final counts = _propertyWoStatus[id] ?? {};
+        final openCount = counts['open'] ?? 0;
+        final inProgressCount = counts['in_progress'] ?? 0;
+
+        Color chipColor;
+        String statusLabel;
+        IconData statusIcon;
+        if (openCount > 0) {
+          chipColor = Colors.red;
+          statusLabel = '$openCount รอดำเนินการ';
+          statusIcon = Icons.warning_amber_rounded;
+        } else if (inProgressCount > 0) {
+          chipColor = Colors.orange;
+          statusLabel = '$inProgressCount กำลังทำ';
+          statusIcon = Icons.autorenew;
+        } else {
+          chipColor = Colors.green;
+          statusLabel = 'เรียบร้อย';
+          statusIcon = Icons.check_circle_outline;
+        }
+
+        return InkWell(
+          onTap: () => context.go('/work-orders'),
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: chipColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: chipColor.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.home, size: 14, color: chipColor),
+                const SizedBox(width: 6),
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: chipColor.withValues(alpha: 0.85),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(statusIcon, size: 13, color: chipColor),
+                const SizedBox(width: 3),
+                Text(
+                  statusLabel,
+                  style: TextStyle(fontSize: 11, color: chipColor),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 

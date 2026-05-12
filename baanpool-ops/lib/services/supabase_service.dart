@@ -725,4 +725,36 @@ class SupabaseService {
       // Silent fail — notification is optional
     }
   }
+
+  // ─── Purchase Orders (สั่งอุปกรณ์) ──────────────────
+
+  Future<List<Map<String, dynamic>>> getPurchaseOrders({
+    String? status,
+    String? propertyId,
+    String? createdBy,
+  }) async {
+    var query = _client.from('purchase_orders').select();
+    if (status != null) query = query.eq('status', status);
+    if (propertyId != null) query = query.eq('property_id', propertyId);
+    if (createdBy != null) query = query.eq('created_by', createdBy);
+    return await query.order('created_at', ascending: false);
+  }
+
+  Future<Map<String, dynamic>> getPurchaseOrder(String id) async {
+    return await _client.from('purchase_orders').select().eq('id', id).single();
+  }
+
+  Future<void> createPurchaseOrder(Map<String, dynamic> data) async {
+    final userId = _client.auth.currentUser?.id;
+    final d = userId != null ? {...data, 'created_by': userId} : data;
+    await _client.from('purchase_orders').insert(d);
+  }
+
+  Future<void> updatePurchaseOrder(String id, Map<String, dynamic> data) async {
+    await _client.from('purchase_orders').update(data).eq('id', id);
+  }
+
+  Future<void> deletePurchaseOrder(String id) async {
+    await _client.from('purchase_orders').delete().eq('id', id);
+  }
 }

@@ -63,6 +63,18 @@ class _ShellScreenState extends State<ShellScreen> {
       ),
     );
 
+    // Purchase Orders — visible to all except technician
+    if (!_authState.isTechnician) {
+      items.add(
+        _NavItem(
+          path: '/purchase-orders',
+          icon: Icons.shopping_cart_outlined,
+          selectedIcon: Icons.shopping_cart,
+          label: 'สั่งอุปกรณ์',
+        ),
+      );
+    }
+
     if (isAdmin) {
       items.add(
         _NavItem(
