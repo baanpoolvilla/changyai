@@ -379,7 +379,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // Grid layout
         final rows = <Widget>[];
         for (int i = 0; i < cards.length; i += crossCount) {
-          final rowCards = cards.skip(i).take(crossCount).toList();
+          final rowCards = <Widget>[...cards.skip(i).take(crossCount)];
           while (rowCards.length < crossCount) {
             rowCards.add(const SizedBox.shrink());
           }
