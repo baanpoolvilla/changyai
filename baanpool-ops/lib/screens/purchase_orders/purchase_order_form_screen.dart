@@ -68,21 +68,14 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
     });
   }
 
-  double get _totalPrice =>
-      _itemRows.fold(0, (sum, r) => sum + (r.computedTotal ?? 0));
-
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final items = <Map<String, dynamic>>[];
-    for (final row in _itemRows) {
-      final name = row.nameCtrl.text.trim();
-      final qty = int.tryParse(row.qtyCtrl.text.trim()) ?? 0;
-      final unitPrice = double.tryParse(row.unitPriceCtrl.text.trim()) ?? 0;
-      if (name.isNotEmpty && qty > 0) {
-        items.add({'name': name, 'qty': qty, 'unit_price': unitPrice});
-      }
-    }
+    final items = _itemRows
+        .map((r) => r.nameCtrl.text.trim())
+        .where((name) => name.isNotEmpty)
+        .map((name) => {'name': name, 'qty': 0, 'unit_price': 0.0})
+        .toList();
 
     setState(() => _loading = true);
     try {
@@ -93,7 +86,7 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
             : _descCtrl.text.trim(),
         'property_id': _selectedPropertyId,
         'items': items,
-        'total_price': _totalPrice,
+        'total_price': 0,
         'notes':
             _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         'status': 'pending',
@@ -166,7 +159,7 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('รายการอุปกรณ์',
+                        Text('รายการอุปกรณ์ที่ต้องการ',
                             style: theme.textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.bold)),
                         TextButton.icon(
@@ -175,6 +168,11 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                           label: const Text('เพิ่มรายการ'),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'ใส่ชื่ออุปกรณ์ — CEO จะใส่จำนวนและราคาตอนอนุมัติ',
+                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline),
                     ),
                     const SizedBox(height: 8),
                     ..._itemRows.asMap().entries.map((entry) {
@@ -187,21 +185,9 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                         onRemove: _itemRows.length > 1
                             ? () => _removeItemRow(i)
                             : null,
-                        onChanged: () => setState(() {}),
                       );
                     }),
 
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        'รวมทั้งหมด: ฿${_totalPrice.toStringAsFixed(2)}',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _notesCtrl,
@@ -238,19 +224,9 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
 // ─── Item row model ────────────────────────────────────
 class _ItemRow {
   final TextEditingController nameCtrl = TextEditingController();
-  final TextEditingController qtyCtrl = TextEditingController(text: '1');
-  final TextEditingController unitPriceCtrl = TextEditingController();
-
-  double? get computedTotal {
-    final qty = int.tryParse(qtyCtrl.text) ?? 0;
-    final price = double.tryParse(unitPriceCtrl.text) ?? 0;
-    return qty * price;
-  }
 
   void dispose() {
     nameCtrl.dispose();
-    qtyCtrl.dispose();
-    unitPriceCtrl.dispose();
   }
 }
 
@@ -259,14 +235,12 @@ class _ItemRowWidget extends StatelessWidget {
   final _ItemRow row;
   final int index;
   final VoidCallback? onRemove;
-  final VoidCallback onChanged;
 
   const _ItemRowWidget({
     super.key,
     required this.row,
     required this.index,
     required this.onRemove,
-    required this.onChanged,
   });
 
   @override
@@ -274,58 +248,22 @@ class _ItemRowWidget extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Name
           Expanded(
-            flex: 4,
             child: TextFormField(
               controller: row.nameCtrl,
               decoration: InputDecoration(
-                labelText: 'ชื่อ ${index + 1}',
+                labelText: 'ชื่ออุปกรณ์ ${index + 1}',
                 isDense: true,
               ),
-              onChanged: (_) => onChanged(),
               validator: (v) => v == null || v.trim().isEmpty ? 'กรอกชื่อ' : null,
             ),
           ),
-          const SizedBox(width: 8),
-          // Qty
-          Expanded(
-            flex: 2,
-            child: TextFormField(
-              controller: row.qtyCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'จำนวน',
-                isDense: true,
-              ),
-              onChanged: (_) => onChanged(),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Unit price
-          Expanded(
-            flex: 3,
-            child: TextFormField(
-              controller: row.unitPriceCtrl,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'ราคา/หน่วย',
-                isDense: true,
-              ),
-              onChanged: (_) => onChanged(),
-            ),
-          ),
-          const SizedBox(width: 4),
-          // Remove button
           IconButton(
             onPressed: onRemove,
             icon: const Icon(Icons.remove_circle_outline, size: 20),
             color: onRemove != null ? Colors.red : Colors.grey.shade300,
             tooltip: 'ลบรายการ',
-            padding: const EdgeInsets.symmetric(vertical: 12),
           ),
         ],
       ),

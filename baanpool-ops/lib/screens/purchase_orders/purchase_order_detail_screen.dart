@@ -80,20 +80,152 @@ class _PurchaseOrderDetailScreenState
     if (mounted) setState(() => _actionLoading = false);
   }
 
-  /// อนุมัติ PO และสร้างค่าใช้จ่ายในระบบอัตโนมัติ
-  Future<void> _approveAndCreateExpense() async {
+  /// CEO กดอนุมัติ → dialog กรอกจำนวน+ราคา → บันทึก expense
+  Future<void> _approveWithPricing() async {
+    if (_order == null) return;
+    final items = _order!.items;
+    if (items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ไม่มีรายการอุปกรณ์')),
+      );
+      return;
+    }
+
+    final qtyControllers =
+        items.map((_) => TextEditingController(text: '1')).toList();
+    final priceControllers =
+        items.map((_) => TextEditingController()).toList();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          double total = 0;
+          for (int i = 0; i < items.length; i++) {
+            final qty = int.tryParse(qtyControllers[i].text) ?? 0;
+            final price = double.tryParse(priceControllers[i].text) ?? 0;
+            total += qty * price;
+          }
+          return AlertDialog(
+            title: const Text('กรอกจำนวนและราคา'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ...items.asMap().entries.map((entry) {
+                    final i = entry.key;
+                    final item = entry.value;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(item.name,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: qtyControllers[i],
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    labelText: 'จำนวน',
+                                    isDense: true,
+                                  ),
+                                  onChanged: (_) => setDialogState(() {}),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 2,
+                                child: TextField(
+                                  controller: priceControllers[i],
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
+                                  decoration: const InputDecoration(
+                                    labelText: 'ราคา/หน่วย (฿)',
+                                    isDense: true,
+                                  ),
+                                  onChanged: (_) => setDialogState(() {}),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                  const Divider(),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'รวม: ฿${total.toStringAsFixed(2)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('ยกเลิก'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style:
+                    FilledButton.styleFrom(backgroundColor: Colors.green),
+                child: const Text('อนุมัติ'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    // capture values before disposing
+    final capturedQty =
+        qtyControllers.map((c) => int.tryParse(c.text) ?? 1).toList();
+    final capturedPrice =
+        priceControllers.map((c) => double.tryParse(c.text) ?? 0).toList();
+    for (final c in [...qtyControllers, ...priceControllers]) {
+      c.dispose();
+    }
+
+    if (confirmed != true || !mounted) return;
+
     setState(() => _actionLoading = true);
     try {
       final now = DateTime.now();
+      double totalPrice = 0;
+      final updatedItems = <Map<String, dynamic>>[];
+      for (int i = 0; i < items.length; i++) {
+        final qty = capturedQty[i];
+        final unitPrice = capturedPrice[i];
+        totalPrice += qty * unitPrice;
+        updatedItems.add({
+          'name': items[i].name,
+          'qty': qty,
+          'unit_price': unitPrice,
+        });
+      }
+
       await _service.updatePurchaseOrder(widget.orderId, {
         'status': 'approved',
+        'items': updatedItems,
+        'total_price': totalPrice,
         'updated_at': now.toIso8601String(),
       });
-      // สร้าง expense record อัตโนมัติ
-      if (_order != null && _order!.totalPrice > 0) {
+
+      if (totalPrice > 0) {
         await _service.createExpense({
           'property_id': _order!.propertyId,
-          'amount': _order!.totalPrice,
+          'amount': totalPrice,
           'description': 'สั่งซื้ออุปกรณ์: ${_order!.title}',
           'category': 'material',
           'cost_type': 'work_order',
@@ -103,10 +235,12 @@ class _PurchaseOrderDetailScreenState
           'expense_date': now.toIso8601String(),
         });
       }
+
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('อนุมัติแล้ว และบันทึกค่าใช้จ่ายเรียบร้อย')),
+          const SnackBar(
+              content: Text('อนุมัติแล้ว และบันทึกค่าใช้จ่ายเรียบร้อย')),
         );
       }
     } catch (e) {
@@ -288,72 +422,115 @@ class _PurchaseOrderDetailScreenState
                         Card(
                           child: Padding(
                             padding: const EdgeInsets.all(12),
-                            child: Column(
-                              children: [
-                                // Header row
-                                Row(
-                                  children: [
-                                    Expanded(
-                                        flex: 4,
-                                        child: Text('ชื่อ',
-                                            style: theme.textTheme.labelMedium
-                                                ?.copyWith(
-                                                    fontWeight:
-                                                        FontWeight.bold))),
-                                    Expanded(
-                                        flex: 2,
-                                        child: Text('จำนวน',
-                                            textAlign: TextAlign.center,
-                                            style: theme.textTheme.labelMedium
-                                                ?.copyWith(
-                                                    fontWeight:
-                                                        FontWeight.bold))),
-                                    Expanded(
-                                        flex: 3,
-                                        child: Text('ราคา/หน่วย',
-                                            textAlign: TextAlign.right,
-                                            style: theme.textTheme.labelMedium
-                                                ?.copyWith(
-                                                    fontWeight:
-                                                        FontWeight.bold))),
-                                    Expanded(
-                                        flex: 3,
-                                        child: Text('รวม',
-                                            textAlign: TextAlign.right,
-                                            style: theme.textTheme.labelMedium
-                                                ?.copyWith(
-                                                    fontWeight:
-                                                        FontWeight.bold))),
-                                  ],
-                                ),
-                                const Divider(),
-                                ..._order!.items.map(
-                                  (item) => Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 4),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                            flex: 4,
-                                            child: Text(item.name)),
-                                        Expanded(
-                                            flex: 2,
-                                            child: Text('${item.qty}',
-                                                textAlign: TextAlign.center)),
-                                        Expanded(
-                                            flex: 3,
-                                            child: Text(
-                                                '฿${item.unitPrice.toStringAsFixed(2)}',
-                                                textAlign: TextAlign.right)),
-                                        Expanded(
-                                            flex: 3,
-                                            child: Text(
-                                                '฿${item.total.toStringAsFixed(2)}',
-                                                textAlign: TextAlign.right)),
-                                      ],
-                                    ),
-                                  ),
-                                ),
+                            child: _order!.status == POStatus.pending
+                                // pending → ชื่ออุปกรณ์อย่างเดียว (ยังไม่มีราคา)
+                                ? Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'รอ CEO กรอกราคาและจำนวนตอนอนุมัติ',
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                                color: theme
+                                                    .colorScheme.outline),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      ..._order!.items.map(
+                                        (item) => Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 4),
+                                          child: Row(
+                                            children: [
+                                              const Icon(
+                                                  Icons.circle,
+                                                  size: 6,
+                                                  color: Colors.grey),
+                                              const SizedBox(width: 8),
+                                              Text(item.name),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                // อนุมัติแล้ว → แสดงตารางเต็ม
+                                : Column(
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                              flex: 4,
+                                              child: Text('ชื่อ',
+                                                  style: theme
+                                                      .textTheme.labelMedium
+                                                      ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight
+                                                                  .bold))),
+                                          Expanded(
+                                              flex: 2,
+                                              child: Text('จำนวน',
+                                                  textAlign: TextAlign.center,
+                                                  style: theme
+                                                      .textTheme.labelMedium
+                                                      ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight
+                                                                  .bold))),
+                                          Expanded(
+                                              flex: 3,
+                                              child: Text('ราคา/หน่วย',
+                                                  textAlign: TextAlign.right,
+                                                  style: theme
+                                                      .textTheme.labelMedium
+                                                      ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight
+                                                                  .bold))),
+                                          Expanded(
+                                              flex: 3,
+                                              child: Text('รวม',
+                                                  textAlign: TextAlign.right,
+                                                  style: theme
+                                                      .textTheme.labelMedium
+                                                      ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight
+                                                                  .bold))),
+                                        ],
+                                      ),
+                                      const Divider(),
+                                      ..._order!.items.map(
+                                        (item) => Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 4),
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                  flex: 4,
+                                                  child: Text(item.name)),
+                                              Expanded(
+                                                  flex: 2,
+                                                  child: Text('${item.qty}',
+                                                      textAlign:
+                                                          TextAlign.center)),
+                                              Expanded(
+                                                  flex: 3,
+                                                  child: Text(
+                                                      '฿${item.unitPrice.toStringAsFixed(2)}',
+                                                      textAlign:
+                                                          TextAlign.right)),
+                                              Expanded(
+                                                  flex: 3,
+                                                  child: Text(
+                                                      '฿${item.total.toStringAsFixed(2)}',
+                                                      textAlign:
+                                                          TextAlign.right)),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
                                 const Divider(),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.end,
