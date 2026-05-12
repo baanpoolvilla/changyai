@@ -22,6 +22,7 @@ class AuthStateService extends ChangeNotifier {
   bool get isAdmin => currentRole.isAdmin;
   bool get isTechnician => currentRole == UserRole.technician;
   bool get isCaretaker => currentRole == UserRole.caretaker;
+  bool get isManager => currentRole == UserRole.manager;
   bool get isLoggedIn => _client.auth.currentUser != null;
 
   StreamSubscription<AuthState>? _authSub;
