@@ -327,6 +327,27 @@ class _PurchaseOrderDetailScreenState
     if (mounted) setState(() => _actionLoading = false);
   }
 
+  void _showFullImage(BuildContext context, String url) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog.fullscreen(
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            title: const Text('\u0e23\u0e39\u0e1b\u0e43\u0e1a\u0e40\u0e2a\u0e23\u0e47\u0e08'),
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              child: Image.network(url, fit: BoxFit.contain),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -573,13 +594,15 @@ class _PurchaseOrderDetailScreenState
                             style: theme.textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 8),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            _order!.receiptImageUrl!,
-                            height: 220,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
+                        GestureDetector(
+                          onTap: () => _showFullImage(context, _order!.receiptImageUrl!),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              _order!.receiptImageUrl!,
+                              fit: BoxFit.contain,
+                              width: double.infinity,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 16),

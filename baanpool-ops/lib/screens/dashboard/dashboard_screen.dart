@@ -279,71 +279,123 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildPropertyStatusBoard(ThemeData theme) {
-    if (_allProperties.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: _allProperties.map((p) {
-        final id = p['id'] as String;
-        final name = p['name'] as String;
-        final counts = _propertyWoStatus[id] ?? {};
-        final openCount = counts['open'] ?? 0;
-        final inProgressCount = counts['in_progress'] ?? 0;
+    if (_allProperties.isEmpty) return const SizedBox.shrink();
 
-        Color chipColor;
-        String statusLabel;
-        IconData statusIcon;
-        if (openCount > 0) {
-          chipColor = Colors.red;
-          statusLabel = '$openCount รอดำเนินการ';
-          statusIcon = Icons.warning_amber_rounded;
-        } else if (inProgressCount > 0) {
-          chipColor = Colors.orange;
-          statusLabel = '$inProgressCount กำลังทำ';
-          statusIcon = Icons.autorenew;
-        } else {
-          chipColor = Colors.green;
-          statusLabel = 'เรียบร้อย';
-          statusIcon = Icons.check_circle_outline;
-        }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 600;
+        final crossCount = isWide ? 3 : 2;
+        final cards = _allProperties.map((p) {
+          final id = p['id'] as String;
+          final name = p['name'] as String;
+          final counts = _propertyWoStatus[id] ?? {};
+          final openCount = counts['open'] ?? 0;
+          final inProgressCount = counts['in_progress'] ?? 0;
+          final total = openCount + inProgressCount;
 
-        return InkWell(
-          onTap: () => context.go('/work-orders'),
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: chipColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: chipColor.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.home, size: 14, color: chipColor),
-                const SizedBox(width: 6),
-                Text(
-                  name,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: chipColor.withValues(alpha: 0.85),
+          Color borderColor;
+          Color bgColor;
+          IconData statusIcon;
+          String statusLabel;
+          if (openCount > 0) {
+            borderColor = Colors.red;
+            bgColor = Colors.red.shade50;
+            statusIcon = Icons.warning_amber_rounded;
+            statusLabel = '\u0e23\u0e2d\u0e14\u0e33\u0e40\u0e19\u0e34\u0e19\u0e01\u0e32\u0e23';
+          } else if (inProgressCount > 0) {
+            borderColor = Colors.orange;
+            bgColor = Colors.orange.shade50;
+            statusIcon = Icons.autorenew;
+            statusLabel = '\u0e01\u0e33\u0e25\u0e31\u0e07\u0e17\u0e33';
+          } else {
+            borderColor = Colors.green;
+            bgColor = Colors.green.shade50;
+            statusIcon = Icons.check_circle_outline;
+            statusLabel = '\u0e40\u0e23\u0e35\u0e22\u0e1a\u0e23\u0e49\u0e2d\u0e22';
+          }
+
+          return InkWell(
+            onTap: () => context.go('/work-orders'),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: borderColor.withValues(alpha: 0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.home, size: 14, color: borderColor),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: borderColor,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 6),
-                Icon(statusIcon, size: 13, color: chipColor),
-                const SizedBox(width: 3),
-                Text(
-                  statusLabel,
-                  style: TextStyle(fontSize: 11, color: chipColor),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(statusIcon, size: 14, color: borderColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        statusLabel,
+                        style: TextStyle(fontSize: 11, color: borderColor),
+                      ),
+                    ],
+                  ),
+                  if (total > 0) ...[
+                    const SizedBox(height: 4),
+                    if (openCount > 0)
+                      Text(
+                        '\u2022 \u0e23\u0e2d: $openCount \u0e43\u0e1a\u0e07\u0e32\u0e19',
+                        style: const TextStyle(fontSize: 11, color: Colors.red),
+                      ),
+                    if (inProgressCount > 0)
+                      Text(
+                        '\u2022 \u0e17\u0e33\u0e2d\u0e22\u0e39\u0e48: $inProgressCount \u0e43\u0e1a\u0e07\u0e32\u0e19',
+                        style: const TextStyle(
+                            fontSize: 11, color: Colors.orange),
+                      ),
+                  ],
+                ],
+              ),
             ),
-          ),
-        );
-      }).toList(),
+          );
+        }).toList();
+
+        // Grid layout
+        final rows = <Widget>[];
+        for (int i = 0; i < cards.length; i += crossCount) {
+          final rowCards = cards.skip(i).take(crossCount).toList();
+          while (rowCards.length < crossCount) {
+            rowCards.add(const SizedBox.shrink());
+          }
+          rows.add(
+            Row(
+              children: rowCards
+                  .map((c) => Expanded(child: c))
+                  .expand((w) => [w, const SizedBox(width: 10)])
+                  .toList()
+                ..removeLast(),
+            ),
+          );
+          if (i + crossCount < cards.length) rows.add(const SizedBox(height: 10));
+        }
+        return Column(children: rows);
+      },
     );
   }
 

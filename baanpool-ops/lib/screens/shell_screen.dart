@@ -75,6 +75,18 @@ class _ShellScreenState extends State<ShellScreen> {
       );
     }
 
+    // Quick Expense — caretaker บันทึกค่าใช้จ่ายเล็กน้อยเอง
+    if (_authState.isCaretaker) {
+      items.add(
+        _NavItem(
+          path: '/quick-expense',
+          icon: Icons.add_shopping_cart_outlined,
+          selectedIcon: Icons.add_shopping_cart,
+          label: 'บันทึกค่าใช้จ่าย',
+        ),
+      );
+    }
+
     if (isAdmin) {
       items.add(
         _NavItem(
