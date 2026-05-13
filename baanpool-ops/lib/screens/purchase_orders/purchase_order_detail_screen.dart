@@ -821,15 +821,32 @@ class _PurchaseOrderDetailScreenState
                             style: theme.textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 8),
-                        GestureDetector(
-                          onTap: () => _showFullImage(context, _order!.receiptImageUrl!),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.network(
-                              _order!.receiptImageUrl!,
-                              fit: BoxFit.contain,
-                              width: double.infinity,
-                            ),
+                        SizedBox(
+                          height: 150,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: [
+                              GestureDetector(
+                                onTap: () => _showFullImage(
+                                    context, _order!.receiptImageUrl!),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    _order!.receiptImageUrl!,
+                                    width: 150,
+                                    height: 150,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        const SizedBox(
+                                      width: 150,
+                                      height: 150,
+                                      child: Center(
+                                          child: Icon(Icons.broken_image)),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 16),

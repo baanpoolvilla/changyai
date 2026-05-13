@@ -171,8 +171,8 @@ class _ShellScreenState extends State<ShellScreen> {
               leading: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Image.asset(
-                  'assets/logo.png',
-                  width: isWide ? 40 : 32,
+                  'logo/logo.png',
+                  width: isWide ? 48 : 36,
                   errorBuilder: (_, __, ___) => Icon(Icons.home_work, size: isWide ? 40 : 28),
                 ),
               ),
