@@ -24,7 +24,9 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
   String? _selectedPropertyId;
   List<Map<String, dynamic>> _properties = [];
 
-  // Dynamic items list
+  // true = ซื้อเอง, false = ให้ CEO อนุมัติ
+  bool _isSelfPurchase = false;
+
   final List<_ItemRow> _itemRows = [];
 
   @override
@@ -87,9 +89,9 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
         'property_id': _selectedPropertyId,
         'items': items,
         'total_price': 0,
-        'notes':
-            _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-        'status': 'pending',
+        'notes': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+        'status': _isSelfPurchase ? 'ordered' : 'pending',
+        'is_self_purchase': _isSelfPurchase,
       });
       if (mounted) context.pop();
     } catch (e) {
@@ -105,6 +107,7 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
       appBar: AppBar(title: const Text('สร้างคำสั่งซื้ออุปกรณ์')),
@@ -117,6 +120,40 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Type Selector
+                    Text('ประเภทการสั่งซื้อ',
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _TypeCard(
+                            selected: !_isSelfPurchase,
+                            icon: Icons.approval_outlined,
+                            selectedIcon: Icons.approval,
+                            title: 'ให้ CEO อนุมัติ',
+                            subtitle: 'CEO ตรวจสอบและกรอกราคาก่อนซื้อ',
+                            color: colorScheme.primary,
+                            onTap: () => setState(() => _isSelfPurchase = false),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _TypeCard(
+                            selected: _isSelfPurchase,
+                            icon: Icons.shopping_bag_outlined,
+                            selectedIcon: Icons.shopping_bag,
+                            title: 'ซื้อเอง',
+                            subtitle: 'ไม่ต้องรอ CEO\nกรอกราคาตอนรับของ',
+                            color: Colors.green.shade700,
+                            onTap: () => setState(() => _isSelfPurchase = true),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
                     TextFormField(
                       controller: _titleCtrl,
                       decoration: const InputDecoration(
@@ -141,8 +178,7 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                           ),
                         ),
                       ],
-                      onChanged: (v) =>
-                          setState(() => _selectedPropertyId = v),
+                      onChanged: (v) => setState(() => _selectedPropertyId = v),
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -171,8 +207,11 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'ใส่ชื่ออุปกรณ์ — CEO จะใส่จำนวนและราคาตอนอนุมัติ',
-                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline),
+                      _isSelfPurchase
+                          ? 'ใส่ชื่ออุปกรณ์ — กรอกราคาตอนรับของ'
+                          : 'ใส่ชื่ออุปกรณ์ — CEO จะใส่จำนวนและราคาตอนอนุมัติ',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.outline),
                     ),
                     const SizedBox(height: 8),
                     ..._itemRows.asMap().entries.map((entry) {
@@ -200,17 +239,25 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                     const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
-                      child: FilledButton(
+                      child: FilledButton.icon(
                         onPressed: _loading ? null : _submit,
-                        child: _loading
+                        icon: _loading
                             ? const SizedBox(
-                                height: 20,
-                                width: 20,
+                                height: 18,
+                                width: 18,
                                 child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white),
+                                    strokeWidth: 2, color: Colors.white),
                               )
-                            : const Text('ส่งคำสั่งซื้อ'),
+                            : Icon(_isSelfPurchase
+                                ? Icons.shopping_bag
+                                : Icons.send_outlined),
+                        label: Text(_isSelfPurchase
+                            ? 'สร้างคำสั่งซื้อ (ซื้อเอง)'
+                            : 'ส่งให้ CEO อนุมัติ'),
+                        style: _isSelfPurchase
+                            ? FilledButton.styleFrom(
+                                backgroundColor: Colors.green.shade700)
+                            : null,
                       ),
                     ),
                   ],
@@ -221,7 +268,67 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
   }
 }
 
-// ─── Item row model ────────────────────────────────────
+// Type selector card
+class _TypeCard extends StatelessWidget {
+  final bool selected;
+  final IconData icon;
+  final IconData selectedIcon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _TypeCard({
+    required this.selected,
+    required this.icon,
+    required this.selectedIcon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.1) : Colors.transparent,
+          border: Border.all(
+            color: selected ? color : Colors.grey.shade300,
+            width: selected ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(selected ? selectedIcon : icon,
+                color: selected ? color : Colors.grey, size: 28),
+            const SizedBox(height: 8),
+            Text(title,
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: selected ? color : null,
+                    fontSize: 14)),
+            const SizedBox(height: 4),
+            Text(subtitle,
+                style: TextStyle(
+                    fontSize: 11,
+                    color: selected
+                        ? color.withValues(alpha: 0.8)
+                        : Colors.grey.shade600)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Item row model
 class _ItemRow {
   final TextEditingController nameCtrl = TextEditingController();
 
@@ -230,7 +337,7 @@ class _ItemRow {
   }
 }
 
-// ─── Item row widget ───────────────────────────────────
+// Item row widget
 class _ItemRowWidget extends StatelessWidget {
   final _ItemRow row;
   final int index;
@@ -256,7 +363,8 @@ class _ItemRowWidget extends StatelessWidget {
                 labelText: 'ชื่ออุปกรณ์ ${index + 1}',
                 isDense: true,
               ),
-              validator: (v) => v == null || v.trim().isEmpty ? 'กรอกชื่อ' : null,
+              validator: (v) =>
+                  v == null || v.trim().isEmpty ? 'กรอกชื่อ' : null,
             ),
           ),
           IconButton(

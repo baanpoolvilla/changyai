@@ -327,6 +327,211 @@ class _PurchaseOrderDetailScreenState
     if (mounted) setState(() => _actionLoading = false);
   }
 
+  /// Self-purchase: caretaker รับของ + ถ่ายรูป + กรอกราคา → expense
+  Future<void> _selfReceiveWithPricing() async {
+    if (_order == null) return;
+    final items = _order!.items;
+    if (items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ไม่มีรายการอุปกรณ์')),
+      );
+      return;
+    }
+
+    // Step 1: pick image
+    final picker = ImagePicker();
+    final source = await showDialog<ImageSource>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('เลือกรูปใบเสร็จ'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('ถ่ายรูป'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('เลือกจากอัลบั้ม'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+
+    final xFile = await picker.pickImage(source: source, imageQuality: 80);
+    if (xFile == null || !mounted) return;
+
+    // Step 2: pricing dialog
+    final qtyControllers =
+        items.map((_) => TextEditingController(text: '1')).toList();
+    final priceControllers =
+        items.map((_) => TextEditingController()).toList();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          double total = 0;
+          for (int i = 0; i < items.length; i++) {
+            final qty = int.tryParse(qtyControllers[i].text) ?? 0;
+            final price = double.tryParse(priceControllers[i].text) ?? 0;
+            total += qty * price;
+          }
+          return AlertDialog(
+            title: const Text('กรอกจำนวนและราคาที่ซื้อมา'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ...items.asMap().entries.map((entry) {
+                    final i = entry.key;
+                    final item = entry.value;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(item.name,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: qtyControllers[i],
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                      labelText: 'จำนวน', isDense: true),
+                                  onChanged: (_) => setDialogState(() {}),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 2,
+                                child: TextField(
+                                  controller: priceControllers[i],
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
+                                  decoration: const InputDecoration(
+                                      labelText: 'ราคา/หน่วย (฿)',
+                                      isDense: true),
+                                  onChanged: (_) => setDialogState(() {}),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                  const Divider(),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'รวม: ฿${total.toStringAsFixed(2)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('ยกเลิก'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style:
+                    FilledButton.styleFrom(backgroundColor: Colors.green),
+                child: const Text('บันทึก'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    final capturedQty =
+        qtyControllers.map((c) => int.tryParse(c.text) ?? 1).toList();
+    final capturedPrice =
+        priceControllers.map((c) => double.tryParse(c.text) ?? 0).toList();
+    for (final c in [...qtyControllers, ...priceControllers]) {
+      c.dispose();
+    }
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _actionLoading = true);
+    try {
+      final now = DateTime.now();
+      final bytes = await xFile.readAsBytes();
+      final ext = xFile.path.split('.').last.toLowerCase();
+      final fileName =
+          'po_${widget.orderId}_${now.millisecondsSinceEpoch}.$ext';
+      final url =
+          await _service.uploadFile('po-receipts', fileName, bytes);
+
+      double totalPrice = 0;
+      final updatedItems = <Map<String, dynamic>>[];
+      for (int i = 0; i < items.length; i++) {
+        final qty = capturedQty[i];
+        final unitPrice = capturedPrice[i];
+        totalPrice += qty * unitPrice;
+        updatedItems.add({
+          'name': items[i].name,
+          'qty': qty,
+          'unit_price': unitPrice,
+        });
+      }
+
+      await _service.updatePurchaseOrder(widget.orderId, {
+        'status': 'received',
+        'receipt_image_url': url,
+        'items': updatedItems,
+        'total_price': totalPrice,
+        'updated_at': now.toIso8601String(),
+      });
+
+      if (totalPrice > 0) {
+        await _service.createExpense({
+          'property_id': _order!.propertyId,
+          'amount': totalPrice,
+          'description': 'สั่งซื้ออุปกรณ์ (ซื้อเอง): ${_order!.title}',
+          'category': 'material',
+          'cost_type': 'work_order',
+          'paid_by': 'company',
+          'billable_to_partner': false,
+          'is_no_expense': false,
+          'expense_date': now.toIso8601String(),
+        });
+      }
+
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text(
+                  'บันทึกการรับของและค่าใช้จ่ายเรียบร้อยแล้ว')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('บันทึกล้มเหลว: $e')));
+      }
+    }
+    if (mounted) setState(() => _actionLoading = false);
+  }
+
   void _showFullImage(BuildContext context, String url) {
     showDialog(
       context: context,
@@ -399,6 +604,23 @@ class _PurchaseOrderDetailScreenState
                                   ),
                                   const SizedBox(width: 8),
                                   _StatusChip(_order!.status),
+                                  if (_order!.isSelfPurchase) ...[                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                            color: Colors.green
+                                                .withValues(alpha: 0.35)),
+                                      ),
+                                      child: const Text('ซื้อเอง',
+                                          style: TextStyle(
+                                              color: Colors.green,
+                                              fontSize: 11)),
+                                    ),
+                                  ],
                                 ],
                               ),
                               if (_propertyName.isNotEmpty) ...[
@@ -443,14 +665,19 @@ class _PurchaseOrderDetailScreenState
                         Card(
                           child: Padding(
                             padding: const EdgeInsets.all(12),
-                            child: _order!.status == POStatus.pending
-                                // pending → ชื่ออุปกรณ์อย่างเดียว (ยังไม่มีราคา)
+                            child: (_order!.status == POStatus.pending ||
+                                    (_order!.isSelfPurchase &&
+                                        _order!.status == POStatus.ordered &&
+                                        _order!.totalPrice == 0))
+                                // pending / self-purchase ยังไม่มีราคา → ชื่ออุปกรณ์อย่างเดียว
                                 ? Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'รอ CEO กรอกราคาและจำนวนตอนอนุมัติ',
+                                        _order!.isSelfPurchase
+                                            ? 'กรอกราคาตอนรับของ'
+                                            : 'รอ CEO กรอกราคาและจำนวนตอนอนุมัติ',
                                         style: theme.textTheme.bodySmall
                                             ?.copyWith(
                                                 color: theme
@@ -613,8 +840,9 @@ class _PurchaseOrderDetailScreenState
                         const Center(child: CircularProgressIndicator())
                       else ...[
                         // CEO: approve pending PO
-                        // CEO / Super Admin: approve pending PO
-                        if (isCeo &&
+                        // CEO flow only: approve pending PO
+                        if (!_order!.isSelfPurchase &&
+                            isCeo &&
                             _order!.status == POStatus.pending) ...[
                           Row(
                             children: [
@@ -641,8 +869,9 @@ class _PurchaseOrderDetailScreenState
                             ],
                           ),
                         ],
-                        // CEO: mark as ordered
-                        if (isCeo &&
+                        // CEO flow only: mark as ordered
+                        if (!_order!.isSelfPurchase &&
+                            isCeo &&
                             _order!.status == POStatus.approved) ...[
                           SizedBox(
                             width: double.infinity,
@@ -654,8 +883,9 @@ class _PurchaseOrderDetailScreenState
                             ),
                           ),
                         ],
-                        // Caretaker (creator): receive
-                        if ((isCreator || isCeo) &&
+                        // CEO flow: caretaker receive (price already set by CEO)
+                        if (!_order!.isSelfPurchase &&
+                            (isCreator || isCeo) &&
                             (_order!.status == POStatus.approved ||
                                 _order!.status == POStatus.ordered)) ...[
                           const SizedBox(height: 8),
@@ -665,6 +895,21 @@ class _PurchaseOrderDetailScreenState
                               onPressed: _uploadReceiptAndReceive,
                               icon: const Icon(Icons.camera_alt_outlined),
                               label: const Text('รับของและถ่ายรูปใบเสร็จ'),
+                            ),
+                          ),
+                        ],
+                        // Self-purchase flow: receive + enter price
+                        if (_order!.isSelfPurchase &&
+                            _order!.status == POStatus.ordered) ...[  
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: _selfReceiveWithPricing,
+                              icon: const Icon(Icons.shopping_bag),
+                              label: const Text(
+                                  'รับของ → ถ่ายรูป + กรอกราคา'),
+                              style: FilledButton.styleFrom(
+                                  backgroundColor: Colors.green.shade700),
                             ),
                           ),
                         ],

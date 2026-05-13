@@ -23,7 +23,6 @@ import '../screens/contractors/contractor_detail_screen.dart';
 import '../screens/purchase_orders/purchase_orders_list_screen.dart';
 import '../screens/purchase_orders/purchase_order_form_screen.dart';
 import '../screens/purchase_orders/purchase_order_detail_screen.dart';
-import '../screens/expenses/quick_expense_screen.dart';
 import '../screens/shell_screen.dart';
 import '../services/auth_state_service.dart';
 
@@ -219,11 +218,6 @@ final appRouter = GoRouter(
               ),
             ),
           ],
-        ),
-        // Quick Expense (caretaker)
-        GoRoute(
-          path: '/quick-expense',
-          builder: (context, state) => const QuickExpenseScreen(),
         ),
       ],
     ),

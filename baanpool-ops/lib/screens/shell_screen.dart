@@ -70,19 +70,7 @@ class _ShellScreenState extends State<ShellScreen> {
           path: '/purchase-orders',
           icon: Icons.shopping_cart_outlined,
           selectedIcon: Icons.shopping_cart,
-          label: 'สั่งอุปกรณ์',
-        ),
-      );
-    }
-
-    // Quick Expense — caretaker + manager บันทึกค่าใช้จ่ายเล็กน้อยเอง
-    if (_authState.isCaretaker || _authState.isManager || isAdmin) {
-      items.add(
-        _NavItem(
-          path: '/quick-expense',
-          icon: Icons.add_shopping_cart_outlined,
-          selectedIcon: Icons.add_shopping_cart,
-          label: 'บันทึกค่าใช้จ่าย',
+          label: 'สั่งซื้ออุปกรณ์',
         ),
       );
     }
