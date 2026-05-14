@@ -69,7 +69,7 @@ class ChangYaiApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'ChangYai',
+      title: 'Chang Yai-BPV',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       routerConfig: appRouter,

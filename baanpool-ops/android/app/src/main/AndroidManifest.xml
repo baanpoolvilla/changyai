@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="ChangYai"
+        android:label="Chang Yai-BPV"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
