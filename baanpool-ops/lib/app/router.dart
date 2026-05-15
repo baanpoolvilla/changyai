@@ -126,6 +126,7 @@ final appRouter = GoRouter(
           path: '/work-orders',
           builder: (context, state) => WorkOrdersListScreen(
             initialFilter: state.uri.queryParameters['filter'],
+            propertyId: state.uri.queryParameters['propertyId'],
           ),
           routes: [
             GoRoute(

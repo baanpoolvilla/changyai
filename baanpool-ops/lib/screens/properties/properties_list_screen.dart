@@ -316,7 +316,22 @@ class _PropertiesListScreenState extends State<PropertiesListScreen> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _buildStatusDot(p.id),
+                    GestureDetector(
+                      onTap: () {
+                        final counts = _workOrderStatusCounts[p.id];
+                        final hasOrders = (counts?['open'] ?? 0) > 0 ||
+                            (counts?['in_progress'] ?? 0) > 0;
+                        if (hasOrders) {
+                          context.push(
+                            Uri(
+                              path: '/work-orders',
+                              queryParameters: {'propertyId': p.id},
+                            ).toString(),
+                          );
+                        }
+                      },
+                      child: _buildStatusDot(p.id),
+                    ),
                     const SizedBox(width: 4),
                     const Icon(Icons.chevron_right),
                   ],

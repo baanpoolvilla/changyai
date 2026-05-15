@@ -11,7 +11,10 @@ class WorkOrdersListScreen extends StatefulWidget {
   /// Optional initial filter: 'today' | 'urgent' | 'no-expense' | null
   final String? initialFilter;
 
-  const WorkOrdersListScreen({super.key, this.initialFilter});
+  /// Optional filter: show only work orders for this property
+  final String? propertyId;
+
+  const WorkOrdersListScreen({super.key, this.initialFilter, this.propertyId});
 
   @override
   State<WorkOrdersListScreen> createState() => _WorkOrdersListScreenState();
@@ -23,6 +26,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
   List<WorkOrder> _workOrders = [];
   bool _loading = true;
   String? _filterMode; // 'today' | 'urgent' | 'no-expense' | null
+  String? _propertyId;
   Map<String, String> _propertyNames = {};
   Map<String, String> _creatorNames = {};
   Set<String> _workOrderIdsWithExpense = {};
@@ -48,6 +52,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
   void initState() {
     super.initState();
     _filterMode = widget.initialFilter;
+    _propertyId = widget.propertyId;
     _tabController = TabController(length: 3, vsync: this);
     _load();
   }
@@ -61,8 +66,10 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
   @override
   void didUpdateWidget(WorkOrdersListScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialFilter != widget.initialFilter) {
+    if (oldWidget.initialFilter != widget.initialFilter ||
+        oldWidget.propertyId != widget.propertyId) {
       _filterMode = widget.initialFilter;
+      _propertyId = widget.propertyId;
       _load();
     }
   }
@@ -75,6 +82,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
           priority: _filterMode == 'urgent' ? 'urgent' : null,
           createdToday: _filterMode == 'today' ? true : null,
           noExpense: _filterMode == 'no-expense' ? true : null,
+          propertyId: _propertyId,
         ),
         _service.getPropertyNamesOnly(),
         _service.getWorkOrderIdsWithExpenses(),
@@ -474,6 +482,10 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
     if (_filterMode == 'today') return 'งานใหม่วันนี้';
     if (_filterMode == 'urgent') return 'งานด่วน';
     if (_filterMode == 'no-expense') return 'ยังไม่บันทึกค่าใช้จ่าย';
+    if (_propertyId != null) {
+      final name = _propertyNames[_propertyId];
+      return name != null ? 'ใบงาน: $name' : 'ใบงานของบ้าน';
+    }
     return 'ใบงานทั้งหมด';
   }
 }
