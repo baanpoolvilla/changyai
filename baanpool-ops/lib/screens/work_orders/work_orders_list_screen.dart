@@ -39,12 +39,21 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
       _workOrders.where((w) => w.status == WorkOrderStatus.open).toList();
   List<WorkOrder> get _inProgressOrders =>
       _workOrders.where((w) => w.status == WorkOrderStatus.inProgress).toList();
+  List<WorkOrder> get _noExpenseOrders =>
+      _workOrders
+          .where(
+            (w) =>
+                w.status == WorkOrderStatus.completed &&
+                !_workOrderIdsWithExpense.contains(w.id),
+          )
+          .toList();
   List<WorkOrder> get _completedOrders =>
       _workOrders
           .where(
             (w) =>
-                w.status == WorkOrderStatus.completed ||
-                w.status == WorkOrderStatus.cancelled,
+                w.status == WorkOrderStatus.cancelled ||
+                (w.status == WorkOrderStatus.completed &&
+                    _workOrderIdsWithExpense.contains(w.id)),
           )
           .toList();
 
@@ -53,7 +62,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
     super.initState();
     _filterMode = widget.initialFilter;
     _propertyId = widget.propertyId;
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _load();
   }
 
@@ -145,6 +154,13 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
                   ),
                   Tab(
                     child: _TabLabel(
+                      '🟠 ยังไม่บันทึก',
+                      _noExpenseOrders.length,
+                      Colors.deepOrange,
+                    ),
+                  ),
+                  Tab(
+                    child: _TabLabel(
                       '✅ เสร็จแล้ว',
                       _completedOrders.length,
                       Colors.green,
@@ -230,7 +246,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
     );
   }
 
-  // ─── Desktop Kanban: 3 columns side by side ─────────────
+  // ─── Desktop Kanban: 4 columns side by side ─────────────
   Widget _buildKanbanDesktop(ThemeData theme) {
     return RefreshIndicator(
       onRefresh: _load,
@@ -261,6 +277,17 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
           const VerticalDivider(width: 1),
           Expanded(
             child: _KanbanColumn(
+              title: 'ยังไม่บันทึกค่าใช้จ่าย',
+              color: Colors.deepOrange,
+              icon: Icons.receipt_long,
+              orders: _noExpenseOrders,
+              onRefresh: _load,
+              cardBuilder: (wo) => _buildWorkOrderCard(wo, theme),
+            ),
+          ),
+          const VerticalDivider(width: 1),
+          Expanded(
+            child: _KanbanColumn(
               title: 'เสร็จแล้ว',
               color: Colors.green,
               icon: Icons.check_circle,
@@ -281,6 +308,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
       children: [
         _buildStatusList(_openOrders, theme),
         _buildStatusList(_inProgressOrders, theme),
+        _buildStatusList(_noExpenseOrders, theme),
         _buildStatusList(_completedOrders, theme),
       ],
     );
