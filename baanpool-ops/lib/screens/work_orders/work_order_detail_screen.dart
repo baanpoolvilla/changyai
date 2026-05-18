@@ -913,16 +913,38 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
               if (_authState.currentRole == UserRole.admin)
                 const SizedBox(height: 8),
               if (wo.status == WorkOrderStatus.open)
-                FilledButton.tonalIcon(
-                  onPressed: () => _updateStatus('in_progress'),
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('เริ่มดำเนินการ'),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton.icon(
+                    onPressed: () => _updateStatus('in_progress'),
+                    icon: const Icon(Icons.play_circle_filled, size: 24),
+                    label: const Text(
+                      'รับงาน — เริ่มดำเนินการ',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
                 ),
               if (wo.status == WorkOrderStatus.inProgress)
-                FilledButton.tonalIcon(
-                  onPressed: _showCompletionDialog,
-                  icon: const Icon(Icons.check),
-                  label: const Text('ทำเสร็จแล้ว'),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton.icon(
+                    onPressed: _showCompletionDialog,
+                    icon: const Icon(Icons.check_circle, size: 24),
+                    label: const Text(
+                      'ยืนยันงานเสร็จสิ้น',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
                 ),
             ],
 
