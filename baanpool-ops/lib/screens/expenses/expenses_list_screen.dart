@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/expense.dart';
+import '../../models/user.dart';
+import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/thai_datetime.dart';
 import '../../utils/page_wrapper.dart';
@@ -17,6 +19,7 @@ class ExpensesListScreen extends StatefulWidget {
 
 class _ExpensesListScreenState extends State<ExpensesListScreen> {
   final _service = SupabaseService(Supabase.instance.client);
+  final _authState = AuthStateService();
   bool _loading = true;
 
   // Current selected month
@@ -379,6 +382,46 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
     );
   }
 
+  Future<void> _deleteExpense(Expense e) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ลบรายการค่าใช้จ่าย'),
+        content: Text(
+          'ต้องการลบ "${e.isNoExpense ? 'ไม่มีค่าใช้จ่าย' : (e.description ?? _categoryLabel(e.category))}" '
+          '(${_formatAmount(e.amount)}) ใช่หรือไม่?\n\nไม่สามารถกู้คืนได้',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('ยกเลิก'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('ลบ'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _service.deleteExpense(e.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ลบรายการเรียบร้อย')),
+        );
+        _loadData();
+      }
+    } catch (err) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ลบไม่สำเร็จ: $err')),
+        );
+      }
+    }
+  }
+
   Widget _buildCategoryFilter(ThemeData theme) {
     return SizedBox(
       height: 44,
@@ -597,38 +640,54 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
                 }(),
                 style: theme.textTheme.bodySmall,
               ),
-              trailing: Column(
+              trailing: Row(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(
-                    e.isNoExpense ? 'ไม่มีค่าใช้จ่าย' : _formatAmount(e.amount),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: e.isNoExpense ? Colors.green : null,
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 1,
-                    ),
-                    decoration: BoxDecoration(
-                      color: e.paidBy == ExpensePaidBy.company
-                          ? Colors.blue.withValues(alpha: 0.1)
-                          : Colors.orange.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      e.paidBy.displayName,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: e.paidBy == ExpensePaidBy.company
-                            ? Colors.blue
-                            : Colors.orange,
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        e.isNoExpense ? 'ไม่มีค่าใช้จ่าย' : _formatAmount(e.amount),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: e.isNoExpense ? Colors.green : null,
+                        ),
                       ),
-                    ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: e.paidBy == ExpensePaidBy.company
+                              ? Colors.blue.withValues(alpha: 0.1)
+                              : Colors.orange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          e.paidBy.displayName,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: e.paidBy == ExpensePaidBy.company
+                                ? Colors.blue
+                                : Colors.orange,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
+                  if (_authState.currentRole.isSuperAdmin) ...[
+                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                      tooltip: 'ลบรายการ',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () => _deleteExpense(e),
+                    ),
+                  ],
                 ],
               ),
             ),

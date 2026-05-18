@@ -186,6 +186,10 @@ class SupabaseService {
     return await query.order('expense_date', ascending: false);
   }
 
+  Future<void> deleteExpense(String id) async {
+    await _client.from('expenses').delete().eq('id', id);
+  }
+
   Future<void> createExpense(Map<String, dynamic> data) async {
     final userId = _client.auth.currentUser?.id;
     final dataWithCreator = userId != null ? {...data, 'created_by': userId} : data;
