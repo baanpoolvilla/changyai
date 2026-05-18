@@ -87,11 +87,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       // Property categories — optional (table may not exist)
       try {
-        final cats = await _service.getPropertyCategories();
-        _categoryNames = {
-          for (final c in cats)
-            c['prefix'] as String: c['display_name'] as String,
-        };
+        _categoryNames = await _service.getPropertyCategories();
       } catch (_) {}
     } catch (e) {
       if (mounted) {
