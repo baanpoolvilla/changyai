@@ -77,6 +77,7 @@ class PurchaseOrder {
   final String? description;
   final String? propertyId;
   final String? createdBy;
+  final String? createdByName;
   final POStatus status;
   final List<PurchaseOrderItem> items;
   final double totalPrice;
@@ -92,6 +93,7 @@ class PurchaseOrder {
     this.description,
     this.propertyId,
     this.createdBy,
+    this.createdByName,
     required this.status,
     this.items = const [],
     this.totalPrice = 0,
@@ -116,6 +118,9 @@ class PurchaseOrder {
       description: json['description'] as String?,
       propertyId: json['property_id'] as String?,
       createdBy: json['created_by'] as String?,
+      createdByName: (json['creator'] is Map)
+          ? json['creator']['full_name'] as String?
+          : null,
       status: POStatus.fromString(json['status'] as String? ?? 'pending'),
       items: itemList,
       totalPrice: (json['total_price'] as num?)?.toDouble() ?? 0,

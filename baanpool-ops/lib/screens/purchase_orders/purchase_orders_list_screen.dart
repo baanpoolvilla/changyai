@@ -377,10 +377,24 @@ class _PoCard extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 6),
-              Text(
-                formatThaiDate(order.createdAt),
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.outline),
+              Row(
+                children: [
+                  const Icon(Icons.person_outline, size: 13, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    order.createdByName ?? 'ไม่ทราบ',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.outline),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.calendar_today_outlined, size: 13, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    formatThaiDate(order.createdAt),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.outline),
+                  ),
+                ],
               ),
             ],
           ),
