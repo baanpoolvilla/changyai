@@ -80,6 +80,9 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
       final results = await Future.wait([
         _service.getWorkOrders(
           priority: _filterMode == 'urgent' ? 'urgent' : null,
+          statuses: _filterMode == 'urgent'
+              ? ['open', 'in_progress']
+              : null,
           createdToday: _filterMode == 'today' ? true : null,
           noExpense: _filterMode == 'no-expense' ? true : null,
           propertyId: _propertyId,
@@ -422,7 +425,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
                               ),
                               const SizedBox(width: 3),
                               Text(
-                                hasExpense ? 'บันทึกค่าใช้จ่ายแล้ว' : 'ยังไม่บันทึก',
+                                hasExpense ? 'บันทึกค่าใช้จ่ายแล้ว' : 'ยังไม่บันทึกค่าใช้จ่าย',
                                 style: TextStyle(
                                   fontSize: 10,
                                   color: hasExpense
