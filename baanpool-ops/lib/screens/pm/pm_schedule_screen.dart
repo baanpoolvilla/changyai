@@ -537,6 +537,13 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
         title: Text(_selectedPropertyId != null
             ? 'PM: ${_propertyNames[_selectedPropertyId] ?? _selectedPropertyId}'
             : 'Preventive Maintenance'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.view_list_rounded),
+            tooltip: 'สรุปอุปกรณ์ทุกหลัง',
+            onPressed: () => context.push('/equipment-overview'),
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
