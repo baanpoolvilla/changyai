@@ -316,6 +316,39 @@ class _PropertiesListScreenState extends State<PropertiesListScreen> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // PM button
+                    Tooltip(
+                      message: 'PM ของบ้านนี้',
+                      child: GestureDetector(
+                        onTap: () {
+                          context.push(
+                            Uri(
+                              path: '/pm',
+                              queryParameters: {'propertyId': p.id},
+                            ).toString(),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.blue.withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.schedule,
+                            size: 14,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
                     GestureDetector(
                       onTap: () {
                         final counts = _workOrderStatusCounts[p.id];

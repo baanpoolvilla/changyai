@@ -422,7 +422,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
                               ),
                               const SizedBox(width: 3),
                               Text(
-                                hasExpense ? 'บันทึกแล้ว' : 'ยังไม่บันทึก',
+                                hasExpense ? 'บันทึกค่าใช้จ่ายแล้ว' : 'ยังไม่บันทึก',
                                 style: TextStyle(
                                   fontSize: 10,
                                   color: hasExpense
@@ -462,7 +462,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
         label = 'สูง';
       case WorkOrderPriority.medium:
         color = Colors.blue;
-        label = 'ปกติ';
+        label = 'ปานกลาง';
       case WorkOrderPriority.low:
         color = Colors.grey;
         label = 'ต่ำ';

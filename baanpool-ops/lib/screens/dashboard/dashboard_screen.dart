@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -24,8 +25,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _noExpenseCount = 0;
   List<Map<String, dynamic>> _recentWorkOrders = [];
   Map<String, String> _propertyNames = {};
-  List<Map<String, dynamic>> _allProperties = [];
-  Map<String, Map<String, int>> _propertyWoStatus = {};
+  Map<String, double> _expenseByProperty = {};
+  double _totalExpense = 0;
 
   @override
   void initState() {
@@ -42,6 +43,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _service.getRecentWorkOrders(limit: 5),
         _service.getPropertyNamesOnly(),
         _service.getNoExpenseWorkOrdersCount(),
+        _service.getExpenses(),
       ]);
 
       _urgentCount = results[0] as int;
@@ -49,16 +51,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _recentWorkOrders = results[2] as List<Map<String, dynamic>>;
       final allProperties = results[3] as List<Map<String, dynamic>>;
       _noExpenseCount = results[4] as int;
+      final allExpenses = results[5] as List<Map<String, dynamic>>;
 
-      _allProperties = allProperties;
       _propertyNames = {
         for (final p in allProperties) p['id'] as String: p['name'] as String,
       };
 
-      // Property work order status (for status board)
-      final propIds = allProperties.map((p) => p['id'] as String).toList();
-      _propertyWoStatus = await _service
-          .getWorkOrderStatusCountsForProperties(propIds);
+      // Compute expense by property for current month
+      final now = DateTime.now();
+      _expenseByProperty = {};
+      _totalExpense = 0;
+      for (final e in allExpenses) {
+        final isNoExpense = e['is_no_expense'] as bool? ?? false;
+        if (isNoExpense) continue;
+        final dateStr = e['expense_date'] as String?;
+        if (dateStr == null) continue;
+        final date = DateTime.tryParse(dateStr);
+        if (date == null) continue;
+        if (date.year != now.year || date.month != now.month) continue;
+        final pid = e['property_id'] as String? ?? 'unknown';
+        final amount = (e['amount'] as num?)?.toDouble() ?? 0;
+        _expenseByProperty[pid] = (_expenseByProperty[pid] ?? 0) + amount;
+        _totalExpense += amount;
+      }
 
       // PM due soon — wrapped in try/catch because migration_003 might not be run
       try {
@@ -193,13 +208,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                       const SizedBox(height: 24),
 
-                      // Property Status Board
+                      // Expense Chart for current month
                       _SectionHeader(
-                        title: 'สถานะบ้าน',
-                        onSeeAll: () => context.go('/work-orders'),
+                        title: 'ค่าใช้จ่ายเดือนนี้',
+                        onSeeAll: () => context.go('/expenses'),
                       ),
                       const SizedBox(height: 8),
-                      _buildPropertyStatusBoard(theme),
+                      _buildExpenseChart(theme),
 
                       const SizedBox(height: 24),
 
@@ -278,124 +293,107 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildPropertyStatusBoard(ThemeData theme) {
-    if (_allProperties.isEmpty) return const SizedBox.shrink();
+  Widget _buildExpenseChart(ThemeData theme) {
+    if (_expenseByProperty.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: Text(
+              'ยังไม่มีค่าใช้จ่ายในเดือนนี้',
+              style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
+            ),
+          ),
+        ),
+      );
+    }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 600;
-        final crossCount = isWide ? 3 : 2;
-        final cards = _allProperties.map((p) {
-          final id = p['id'] as String;
-          final name = p['name'] as String;
-          final counts = _propertyWoStatus[id] ?? {};
-          final openCount = counts['open'] ?? 0;
-          final inProgressCount = counts['in_progress'] ?? 0;
-          final total = openCount + inProgressCount;
+    // Sort entries by amount descending
+    final sorted = _expenseByProperty.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
 
-          Color borderColor;
-          Color bgColor;
-          IconData statusIcon;
-          String statusLabel;
-          if (openCount > 0) {
-            borderColor = Colors.red;
-            bgColor = Colors.red.shade50;
-            statusIcon = Icons.warning_amber_rounded;
-            statusLabel = '\u0e23\u0e2d\u0e14\u0e33\u0e40\u0e19\u0e34\u0e19\u0e01\u0e32\u0e23';
-          } else if (inProgressCount > 0) {
-            borderColor = Colors.orange;
-            bgColor = Colors.orange.shade50;
-            statusIcon = Icons.autorenew;
-            statusLabel = '\u0e01\u0e33\u0e25\u0e31\u0e07\u0e17\u0e33';
-          } else {
-            borderColor = Colors.green;
-            bgColor = Colors.green.shade50;
-            statusIcon = Icons.check_circle_outline;
-            statusLabel = '\u0e40\u0e23\u0e35\u0e22\u0e1a\u0e23\u0e49\u0e2d\u0e22';
-          }
+    const colors = [
+      Color(0xFF4CAF50),
+      Color(0xFF2196F3),
+      Color(0xFFF44336),
+      Color(0xFFFF9800),
+      Color(0xFF9C27B0),
+      Color(0xFF00BCD4),
+      Color(0xFFFF5722),
+      Color(0xFF607D8B),
+      Color(0xFFE91E63),
+      Color(0xFF795548),
+    ];
 
-          return InkWell(
-            onTap: () => context.go('/work-orders'),
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: borderColor.withValues(alpha: 0.4)),
+    final values = sorted.map((e) => e.value).toList();
+    final labels = sorted.map((e) {
+      final name = _propertyNames[e.key] ?? e.key;
+      return name;
+    }).toList();
+    final entryColors = List.generate(
+      sorted.length,
+      (i) => colors[i % colors.length],
+    );
+
+    String formatAmount(double amount) {
+      final s = amount.toStringAsFixed(0);
+      final formatted = s.replaceAllMapped(
+        RegExp(r'(\d)(?=(\d{3})+$)'),
+        (m) => '${m[1]},',
+      );
+      return '฿$formatted';
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // Donut chart
+            SizedBox(
+              height: 200,
+              child: CustomPaint(
+                painter: _DonutChartPainter(
+                  values: values,
+                  colors: entryColors,
+                  centerText: formatAmount(_totalExpense),
+                  centerSubText: 'รวม',
+                ),
+                child: const SizedBox.expand(),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.home, size: 14, color: borderColor),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          name,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                            color: borderColor,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+            ),
+            const SizedBox(height: 16),
+            // Legend
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: List.generate(sorted.length, (i) {
+                final pct = _totalExpense > 0
+                    ? (sorted[i].value / _totalExpense * 100)
+                    : 0.0;
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: entryColors[i],
+                        shape: BoxShape.circle,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(statusIcon, size: 14, color: borderColor),
-                      const SizedBox(width: 4),
-                      Text(
-                        statusLabel,
-                        style: TextStyle(fontSize: 11, color: borderColor),
-                      ),
-                    ],
-                  ),
-                  if (total > 0) ...[
-                    const SizedBox(height: 4),
-                    if (openCount > 0)
-                      Text(
-                        '\u2022 \u0e23\u0e2d: $openCount \u0e43\u0e1a\u0e07\u0e32\u0e19',
-                        style: const TextStyle(fontSize: 11, color: Colors.red),
-                      ),
-                    if (inProgressCount > 0)
-                      Text(
-                        '\u2022 \u0e17\u0e33\u0e2d\u0e22\u0e39\u0e48: $inProgressCount \u0e43\u0e1a\u0e07\u0e32\u0e19',
-                        style: const TextStyle(
-                            fontSize: 11, color: Colors.orange),
-                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${labels[i]} (${pct.toStringAsFixed(0)}%)',
+                      style: theme.textTheme.bodySmall,
+                    ),
                   ],
-                ],
-              ),
+                );
+              }),
             ),
-          );
-        }).toList();
-
-        // Grid layout
-        final rows = <Widget>[];
-        for (int i = 0; i < cards.length; i += crossCount) {
-          final rowCards = <Widget>[...cards.skip(i).take(crossCount)];
-          while (rowCards.length < crossCount) {
-            rowCards.add(const SizedBox.shrink());
-          }
-          rows.add(
-            Row(
-              children: rowCards
-                  .map((c) => Expanded(child: c))
-                  .expand((w) => [w, const SizedBox(width: 10)])
-                  .toList()
-                ..removeLast(),
-            ),
-          );
-          if (i + crossCount < cards.length) rows.add(const SizedBox(height: 10));
-        }
-        return Column(children: rows);
-      },
+          ],
+        ),
+      ),
     );
   }
 
@@ -520,4 +518,90 @@ class _SectionHeader extends StatelessWidget {
       ],
     );
   }
+}
+
+// ─── Donut Chart Painter ─────────────────────────────────
+class _DonutChartPainter extends CustomPainter {
+  final List<double> values;
+  final List<Color> colors;
+  final String centerText;
+  final String centerSubText;
+
+  const _DonutChartPainter({
+    required this.values,
+    required this.colors,
+    required this.centerText,
+    this.centerSubText = '',
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = values.fold<double>(0, (s, v) => s + v);
+    if (total == 0) return;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) / 2 - 8;
+    const strokeWidth = 44.0;
+    const gapAngle = 0.03; // small gap between segments
+
+    double startAngle = -math.pi / 2;
+    for (int i = 0; i < values.length; i++) {
+      final sweep = (values[i] / total) * 2 * math.pi - gapAngle;
+      if (sweep <= 0) continue;
+
+      final paint = Paint()
+        ..color = colors[i % colors.length]
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.butt;
+
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle,
+        sweep,
+        false,
+        paint,
+      );
+      startAngle += sweep + gapAngle;
+    }
+
+    // Center sub text
+    if (centerSubText.isNotEmpty) {
+      final subPainter = TextPainter(
+        text: TextSpan(
+          text: centerSubText,
+          style: const TextStyle(
+            color: Colors.grey,
+            fontSize: 12,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      subPainter.paint(
+        canvas,
+        center - Offset(subPainter.width / 2, subPainter.height + 14),
+      );
+    }
+
+    // Center main text
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: centerText,
+        style: const TextStyle(
+          color: Colors.black87,
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    textPainter.paint(
+      canvas,
+      center - Offset(textPainter.width / 2, textPainter.height / 2 - 4),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_DonutChartPainter old) =>
+      old.values != values || old.colors != colors;
 }

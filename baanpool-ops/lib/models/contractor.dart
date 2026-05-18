@@ -12,6 +12,8 @@ class Contractor {
   final int? rating; // 1-5
   final bool isActive;
   final DateTime createdAt;
+  final double? price; // ราคา/อัตราค่าบริการ
+  final String? category; // หมวดหมู่ เช่น งานช่าง, งานทั่วไป, ร้านอาหาร
 
   const Contractor({
     required this.id,
@@ -25,6 +27,8 @@ class Contractor {
     this.rating,
     this.isActive = true,
     required this.createdAt,
+    this.price,
+    this.category,
   });
 
   factory Contractor.fromJson(Map<String, dynamic> json) {
@@ -40,6 +44,8 @@ class Contractor {
       rating: json['rating'] as int?,
       isActive: json['is_active'] as bool? ?? true,
       createdAt: DateTime.parse(json['created_at'] as String),
+      price: (json['price'] as num?)?.toDouble(),
+      category: json['category'] as String?,
     );
   }
 
@@ -53,6 +59,8 @@ class Contractor {
     'zone': zone,
     'rating': rating,
     'is_active': isActive,
+    'price': price,
+    'category': category,
   };
 }
 

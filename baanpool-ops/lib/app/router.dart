@@ -174,7 +174,9 @@ final appRouter = GoRouter(
         // PM Schedules
         GoRoute(
           path: '/pm',
-          builder: (context, state) => const PmScheduleScreen(),
+          builder: (context, state) => PmScheduleScreen(
+            initialPropertyId: state.uri.queryParameters['propertyId'],
+          ),
         ),
 
         // Admin — Roles Management

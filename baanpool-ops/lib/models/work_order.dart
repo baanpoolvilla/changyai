@@ -150,7 +150,7 @@ enum WorkOrderPriority {
       case WorkOrderPriority.high:
         return 'สูง';
       case WorkOrderPriority.urgent:
-        return 'ด่วน';
+        return 'เร่งด่วน';
     }
   }
 }

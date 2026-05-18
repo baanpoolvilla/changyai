@@ -9,7 +9,9 @@ import '../../utils/thai_datetime.dart';
 import '../../utils/page_wrapper.dart';
 
 class PmScheduleScreen extends StatefulWidget {
-  const PmScheduleScreen({super.key});
+  final String? initialPropertyId;
+
+  const PmScheduleScreen({super.key, this.initialPropertyId});
 
   @override
   State<PmScheduleScreen> createState() => _PmScheduleScreenState();
@@ -21,10 +23,19 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
   Map<String, String> _propertyNames = {}; // property_id → name
   Map<String, String> _assetNames = {}; // asset_id → name
   bool _loading = true;
+  String? _selectedPropertyId; // null = ทั้งหมด
+
+  List<PmSchedule> get _filteredSchedules {
+    if (_selectedPropertyId == null) return _schedules;
+    return _schedules
+        .where((s) => s.propertyId == _selectedPropertyId)
+        .toList();
+  }
 
   @override
   void initState() {
     super.initState();
+    _selectedPropertyId = widget.initialPropertyId;
     _load();
   }
 
@@ -512,37 +523,99 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    // Properties that have at least 1 PM schedule
+    final usedPropertyIds = _schedules.map((s) => s.propertyId).toSet();
+    final filterProperties = _propertyNames.entries
+        .where((e) => usedPropertyIds.contains(e.key))
+        .toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+
+    final displayed = _filteredSchedules;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Preventive Maintenance')),
+      appBar: AppBar(
+        title: Text(_selectedPropertyId != null
+            ? 'PM: ${_propertyNames[_selectedPropertyId] ?? _selectedPropertyId}'
+            : 'Preventive Maintenance'),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _schedules.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.schedule,
-                    size: 64,
-                    color: theme.colorScheme.outline,
+          : Column(
+              children: [
+                // Property filter chips
+                if (filterProperties.isNotEmpty)
+                  SizedBox(
+                    height: 44,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: FilterChip(
+                            label: const Text('ทั้งหมด'),
+                            selected: _selectedPropertyId == null,
+                            onSelected: (_) {
+                              setState(() => _selectedPropertyId = null);
+                            },
+                          ),
+                        ),
+                        ...filterProperties.map(
+                          (e) => Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: FilterChip(
+                              label: Text(e.value),
+                              selected: _selectedPropertyId == e.key,
+                              onSelected: (_) {
+                                setState(() {
+                                  _selectedPropertyId =
+                                      _selectedPropertyId == e.key
+                                          ? null
+                                          : e.key;
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  const Text('ยังไม่มี PM Schedule'),
-                ],
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: PageWrapper(
-                child: ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 80),
-                  itemCount: _schedules.length,
-                  itemBuilder: (context, index) {
-                    final s = _schedules[index];
-                    return _buildScheduleCard(s);
-                  },
+
+                // Schedule list
+                Expanded(
+                  child: displayed.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.schedule,
+                                size: 64,
+                                color: theme.colorScheme.outline,
+                              ),
+                              const SizedBox(height: 16),
+                              const Text('ยังไม่มี PM Schedule'),
+                            ],
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _load,
+                          child: PageWrapper(
+                            child: ListView.builder(
+                              padding: const EdgeInsets.only(bottom: 80),
+                              itemCount: displayed.length,
+                              itemBuilder: (context, index) {
+                                final s = displayed[index];
+                                return _buildScheduleCard(s);
+                              },
+                            ),
+                          ),
+                        ),
                 ),
-              ),
+              ],
             ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showCreatePmDialog,

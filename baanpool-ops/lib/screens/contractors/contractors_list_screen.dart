@@ -13,10 +13,18 @@ class ContractorsListScreen extends StatefulWidget {
   State<ContractorsListScreen> createState() => _ContractorsListScreenState();
 }
 
+const _kCategories = ['งานช่าง', 'งานทั่วไป', 'ร้านอาหาร', 'ไฟฟ้า/ประปา', 'อื่นๆ'];
+
 class _ContractorsListScreenState extends State<ContractorsListScreen> {
   final _service = SupabaseService(Supabase.instance.client);
   List<Contractor> _contractors = [];
   bool _loading = true;
+  String? _selectedCategory; // null = ทั้งหมด
+
+  List<Contractor> get _filtered {
+    if (_selectedCategory == null) return _contractors;
+    return _contractors.where((c) => c.category == _selectedCategory).toList();
+  }
 
   @override
   void initState() {
@@ -46,11 +54,15 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
     final specialtyCtrl = TextEditingController(
       text: contractor?.specialty ?? '',
     );
+    final priceCtrl = TextEditingController(
+      text: contractor?.price != null ? contractor!.price!.toStringAsFixed(0) : '',
+    );
     final companyCtrl = TextEditingController(
       text: contractor?.companyName ?? '',
     );
     final notesCtrl = TextEditingController(text: contractor?.notes ?? '');
     String? selectedZone = contractor?.zone;
+    String? selectedCategory = contractor?.category;
     final formKey = GlobalKey<FormState>();
     const zoneOptions = ['ทั่วไป', 'บางแสน', 'พัทยา'];
 
@@ -100,6 +112,41 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
                     prefixIcon: Icon(Icons.stars_outlined),
                     hintText: 'เช่น ไฟฟ้า, ประปา, แอร์, กฎหมาย',
                   ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: priceCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'ราคา/ค่าบริการ *',
+                    prefixIcon: Icon(Icons.attach_money),
+                    hintText: 'ระบุราคาเป็นตัวเลข',
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'กรุณาระบุราคา';
+                    if (double.tryParse(v.trim()) == null) return 'ราคาต้องเป็นตัวเลข';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String?>(
+                  value: selectedCategory,
+                  decoration: const InputDecoration(
+                    labelText: 'หมวดหมู่ *',
+                    prefixIcon: Icon(Icons.category_outlined),
+                  ),
+                  validator: (v) => v == null ? 'กรุณาเลือกหมวดหมู่' : null,
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('เลือกหมวดหมู่'),
+                    ),
+                    ..._kCategories.map((cat) => DropdownMenuItem<String?>(
+                      value: cat,
+                      child: Text(cat),
+                    )),
+                  ],
+                  onChanged: (v) => setDialogState(() => selectedCategory = v),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String?>(
@@ -170,6 +217,8 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
                       ? null
                       : notesCtrl.text.trim(),
                   'zone': selectedZone,
+                  'price': double.tryParse(priceCtrl.text.trim()),
+                  'category': selectedCategory,
                 };
 
                 if (contractor == null) {
@@ -256,44 +305,93 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
       appBar: AppBar(title: const Text('รายชื่อ Contact')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _contractors.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.contacts_outlined,
-                    size: 64,
-                    color: theme.colorScheme.outline,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'ยังไม่มีข้อมูล Contact',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.colorScheme.outline,
+          : Column(
+              children: [
+                // Category filter chips
+                if (_contractors.isNotEmpty)
+                  SizedBox(
+                    height: 44,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: FilterChip(
+                            label: const Text('ทั้งหมด'),
+                            selected: _selectedCategory == null,
+                            onSelected: (_) {
+                              setState(() => _selectedCategory = null);
+                            },
+                          ),
+                        ),
+                        ..._kCategories.map(
+                          (cat) => Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: FilterChip(
+                              label: Text(cat),
+                              selected: _selectedCategory == cat,
+                              onSelected: (_) {
+                                setState(() {
+                                  _selectedCategory =
+                                      _selectedCategory == cat ? null : cat;
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: () => _showAddEditDialog(),
-                    icon: const Icon(Icons.add),
-                    label: const Text('เพิ่ม Contact'),
-                  ),
-                ],
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: PageWrapper(
-                child: ListView.builder(
-                  padding: EdgeInsets.zero,
-                  itemCount: _contractors.length,
-                  itemBuilder: (context, index) {
-                    final c = _contractors[index];
-                    return _buildContractorCard(c, theme);
-                  },
+                Expanded(
+                  child: _filtered.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.contacts_outlined,
+                                size: 64,
+                                color: theme.colorScheme.outline,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _selectedCategory != null
+                                    ? 'ไม่มี Contact ในหมวด "$_selectedCategory"'
+                                    : 'ยังไม่มีข้อมูล Contact',
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  color: theme.colorScheme.outline,
+                                ),
+                              ),
+                              if (_selectedCategory == null) ...[
+                                const SizedBox(height: 16),
+                                FilledButton.icon(
+                                  onPressed: () => _showAddEditDialog(),
+                                  icon: const Icon(Icons.add),
+                                  label: const Text('เพิ่ม Contact'),
+                                ),
+                              ],
+                            ],
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _load,
+                          child: PageWrapper(
+                            child: ListView.builder(
+                              padding: EdgeInsets.zero,
+                              itemCount: _filtered.length,
+                              itemBuilder: (context, index) {
+                                final c = _filtered[index];
+                                return _buildContractorCard(c, theme);
+                              },
+                            ),
+                          ),
+                        ),
                 ),
-              ),
+              ],
             ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddEditDialog(),

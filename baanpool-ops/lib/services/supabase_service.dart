@@ -204,6 +204,7 @@ class SupabaseService {
     bool? dueSoon,
     String? assetId,
     String? assignedTo,
+    String? propertyId,
   }) async {
     try {
       var query = _client
@@ -214,6 +215,7 @@ class SupabaseService {
           .eq('is_active', true);
       if (assetId != null) query = query.eq('asset_id', assetId);
       if (assignedTo != null) query = query.eq('assigned_to', assignedTo);
+      if (propertyId != null) query = query.eq('property_id', propertyId);
       if (dueSoon == true) {
         final weekFromNow = DateTime.now().add(const Duration(days: 7));
         query = query.lte('next_due_date', weekFromNow.toIso8601String());
@@ -223,6 +225,7 @@ class SupabaseService {
       // Fallback: query without join (assigned_to column may not exist yet)
       var query = _client.from('pm_schedules').select().eq('is_active', true);
       if (assetId != null) query = query.eq('asset_id', assetId);
+      if (propertyId != null) query = query.eq('property_id', propertyId);
       if (dueSoon == true) {
         final weekFromNow = DateTime.now().add(const Duration(days: 7));
         query = query.lte('next_due_date', weekFromNow.toIso8601String());

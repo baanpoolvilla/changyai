@@ -194,157 +194,254 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
     );
   }
 
-  /// Show dialog requiring photo before marking work order as completed
+  /// Show dialog requiring expense estimate + photo before marking as completed
   void _showCompletionDialog() {
     // Reset completion images
     _completionImages.clear();
     _completionImageBytes.clear();
-    final completionNotesCtrl = TextEditingController();
+
+    // Expense estimate items: parallel lists of name + price controllers
+    final List<TextEditingController> itemNameCtrls = [
+      TextEditingController(),
+    ];
+    final List<TextEditingController> itemPriceCtrls = [
+      TextEditingController(),
+    ];
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('ยืนยันทำเสร็จแล้ว'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'กรุณากรอกรายละเอียดและแนบรูปถ่ายก่อนกดยืนยัน',
-                  style: TextStyle(color: Colors.grey),
-                ),
-                const SizedBox(height: 16),
+        builder: (ctx, setDialogState) {
+          bool hasValidItem() =>
+              itemNameCtrls.any((c) => c.text.trim().isNotEmpty);
 
-                // Completion notes field
-                TextField(
-                  controller: completionNotesCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'รายละเอียดจบงาน *',
-                    hintText: 'เช่น เปลี่ยนปั๊มน้ำแล้ว, ซ่อมไฟเสร็จ...',
-                    prefixIcon: Icon(Icons.notes),
-                    border: OutlineInputBorder(),
+          String buildNotesText() {
+            final buf = StringBuffer('ประมาณการค่าใช้จ่าย:\n');
+            for (int i = 0; i < itemNameCtrls.length; i++) {
+              final name = itemNameCtrls[i].text.trim();
+              final price = itemPriceCtrls[i].text.trim();
+              if (name.isNotEmpty) {
+                buf.writeln(
+                  '• $name${price.isNotEmpty ? ' - ฿$price' : ''}',
+                );
+              }
+            }
+            return buf.toString().trim();
+          }
+
+          return AlertDialog(
+            title: const Text('ยืนยันทำเสร็จแล้ว'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'กรุณากรอกประมาณการค่าใช้จ่ายและแนบรูปถ่ายก่อนกดยืนยัน',
+                    style: TextStyle(color: Colors.grey),
                   ),
-                  maxLines: 3,
-                  onChanged: (_) => setDialogState(() {}),
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-                // Preview picked images
-                if (_completionImageBytes.isNotEmpty) ...[
-                  SizedBox(
-                    height: 100,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _completionImageBytes.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 8),
-                      itemBuilder: (context, index) {
-                        return Stack(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.memory(
-                                _completionImageBytes[index],
-                                width: 100,
-                                height: 100,
-                                fit: BoxFit.cover,
+                  // Expense estimate items
+                  const Text(
+                    'ประมาณการค่าใช้จ่าย *',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ...List.generate(itemNameCtrls.length, (i) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: TextField(
+                              controller: itemNameCtrls[i],
+                              decoration: InputDecoration(
+                                labelText: 'รายการที่ ${i + 1} *',
+                                hintText: 'เช่น ค่าวัสดุ, ค่าแรงช่าง',
+                                border: const OutlineInputBorder(),
+                                isDense: true,
                               ),
+                              onChanged: (_) => setDialogState(() {}),
                             ),
-                            Positioned(
-                              top: 2,
-                              right: 2,
-                              child: GestureDetector(
-                                onTap: () {
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              controller: itemPriceCtrls[i],
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              decoration: const InputDecoration(
+                                labelText: 'ราคา (฿)',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                                prefixText: '฿ ',
+                              ),
+                              onChanged: (_) => setDialogState(() {}),
+                            ),
+                          ),
+                          if (itemNameCtrls.length > 1) ...[
+                            const SizedBox(width: 4),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: IconButton(
+                                onPressed: () {
                                   setDialogState(() {
-                                    _completionImages.removeAt(index);
-                                    _completionImageBytes.removeAt(index);
+                                    itemNameCtrls.removeAt(i).dispose();
+                                    itemPriceCtrls.removeAt(i).dispose();
                                   });
                                 },
-                                child: Container(
-                                  decoration: const BoxDecoration(
-                                    color: Colors.red,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  padding: const EdgeInsets.all(4),
-                                  child: const Icon(
-                                    Icons.close,
-                                    size: 14,
-                                    color: Colors.white,
-                                  ),
+                                icon: const Icon(
+                                  Icons.remove_circle_outline,
+                                  color: Colors.red,
+                                  size: 20,
                                 ),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
                               ),
                             ),
                           ],
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-
-                // Pick image button
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    try {
-                      final images = await _picker.pickMultiImage(
-                        imageQuality: 70,
-                      );
-                      if (images.isEmpty) return;
-                      for (final img in images) {
-                        final bytes = await img.readAsBytes();
-                        setDialogState(() {
-                          _completionImages.add(img);
-                          _completionImageBytes.add(bytes);
-                        });
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('เลือกรูปภาพล้มเหลว: $e')),
-                        );
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.camera_alt),
-                  label: Text(
-                    _completionImageBytes.isEmpty
-                        ? 'แนบรูปภาพหลังแก้ไข *'
-                        : 'เพิ่มรูป (${_completionImageBytes.length})',
-                  ),
-                ),
-
-                if (_completionImageBytes.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: Text(
-                      '* จำเป็นต้องแนบรูปถ่ายอย่างน้อย 1 รูป',
-                      style: TextStyle(color: Colors.red, fontSize: 12),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('ยกเลิก'),
-            ),
-            FilledButton(
-              onPressed: (_completionImageBytes.isEmpty ||
-                      completionNotesCtrl.text.trim().isEmpty)
-                  ? null
-                  : () async {
-                      Navigator.pop(ctx);
-                      await _completeWithPhotos(
-                        notes: completionNotesCtrl.text.trim(),
-                      );
+                        ],
+                      ),
+                    );
+                  }),
+                  TextButton.icon(
+                    onPressed: () {
+                      setDialogState(() {
+                        itemNameCtrls.add(TextEditingController());
+                        itemPriceCtrls.add(TextEditingController());
+                      });
                     },
-              child: const Text('ยืนยันเสร็จ'),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('เพิ่มรายการ'),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // Preview picked images
+                  if (_completionImageBytes.isNotEmpty) ...[
+                    SizedBox(
+                      height: 100,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _completionImageBytes.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          return Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.memory(
+                                  _completionImageBytes[index],
+                                  width: 100,
+                                  height: 100,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              Positioned(
+                                top: 2,
+                                right: 2,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setDialogState(() {
+                                      _completionImages.removeAt(index);
+                                      _completionImageBytes.removeAt(index);
+                                    });
+                                  },
+                                  child: Container(
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    padding: const EdgeInsets.all(4),
+                                    child: const Icon(
+                                      Icons.close,
+                                      size: 14,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // Pick image button
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      try {
+                        final images = await _picker.pickMultiImage(
+                          imageQuality: 70,
+                        );
+                        if (images.isEmpty) return;
+                        for (final img in images) {
+                          final bytes = await img.readAsBytes();
+                          setDialogState(() {
+                            _completionImages.add(img);
+                            _completionImageBytes.add(bytes);
+                          });
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('เลือกรูปภาพล้มเหลว: $e')),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.camera_alt),
+                    label: Text(
+                      _completionImageBytes.isEmpty
+                          ? 'แนบรูปภาพหลังแก้ไข *'
+                          : 'เพิ่มรูป (${_completionImageBytes.length})',
+                    ),
+                  ),
+
+                  if (_completionImageBytes.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Text(
+                        '* จำเป็นต้องแนบรูปถ่ายอย่างน้อย 1 รูป',
+                        style: TextStyle(color: Colors.red, fontSize: 12),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('ยกเลิก'),
+              ),
+              FilledButton(
+                onPressed: (_completionImageBytes.isEmpty || !hasValidItem())
+                    ? null
+                    : () async {
+                        final notes = buildNotesText();
+                        Navigator.pop(ctx);
+                        await _completeWithPhotos(notes: notes);
+                        for (final c in itemNameCtrls) {
+                          c.dispose();
+                        }
+                        for (final c in itemPriceCtrls) {
+                          c.dispose();
+                        }
+                      },
+                child: const Text('ยืนยันเสร็จ'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

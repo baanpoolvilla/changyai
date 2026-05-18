@@ -296,8 +296,7 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
                           value: 'medium',
                           child: Text('ปานกลาง'),
                         ),
-                        DropdownMenuItem(value: 'high', child: Text('สูง')),
-                        DropdownMenuItem(value: 'urgent', child: Text('ด่วน')),
+                        DropdownMenuItem(value: 'urgent', child: Text('เร่งด่วน')),
                       ],
                       onChanged: (v) =>
                           setState(() => _priority = v ?? 'medium'),
