@@ -460,7 +460,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             // ── Legend ───────────────────────────────────────
             Wrap(
-              spacing: 12,
+              spacing: 16,
               runSpacing: 8,
               children: List.generate(sorted.length, (i) {
                 final pct = viewTotal > 0
@@ -477,10 +477,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         shape: BoxShape.circle,
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${labels[i]} (${pct.toStringAsFixed(0)}%)',
-                      style: theme.textTheme.bodySmall,
+                    const SizedBox(width: 6),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          labels[i],
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          '${formatAmount(sorted[i].value)}  (${pct.toStringAsFixed(0)}%)',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 );
