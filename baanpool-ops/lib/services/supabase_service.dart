@@ -553,6 +553,17 @@ class SupabaseService {
         .order('name', ascending: true);
   }
 
+  Future<List<Map<String, dynamic>>> getPropertyCategories() async {
+    try {
+      return await _client
+          .from('property_categories')
+          .select('prefix, display_name')
+          .order('prefix', ascending: true);
+    } catch (_) {
+      return [];
+    }
+  }
+
   /// Batch-fetch user full_names by a list of user IDs
   Future<Map<String, String>> getUserNamesByIds(List<String> ids) async {
     if (ids.isEmpty) return {};

@@ -27,6 +27,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, String> _propertyNames = {};
   Map<String, double> _expenseByProperty = {};
   double _totalExpense = 0;
+  Map<String, String> _categoryNames = {}; // prefix → display_name
+  String? _selectedCategory; // null = group by category; non-null = drill into category
 
   @override
   void initState() {
@@ -82,6 +84,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       } catch (_) {
         _pmDueSoonCount = 0;
       }
+
+      // Property categories — optional (table may not exist)
+      try {
+        final cats = await _service.getPropertyCategories();
+        _categoryNames = {
+          for (final c in cats)
+            c['prefix'] as String: c['display_name'] as String,
+        };
+      } catch (_) {}
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -293,6 +304,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // Derive category prefix for a property name
+  String _getCategoryPrefix(String propertyName) {
+    // Match longest prefix first (e.g. BS-HS before BS-H)
+    final prefixes = _categoryNames.keys.toList()
+      ..sort((a, b) => b.length.compareTo(a.length));
+    for (final prefix in prefixes) {
+      if (propertyName.startsWith(prefix)) return prefix;
+    }
+    // Fallback: strip trailing digits
+    final match = RegExp(r'^(.*\D)(\d+)$').firstMatch(propertyName);
+    return match?.group(1) ?? propertyName;
+  }
+
   Widget _buildExpenseChart(ThemeData theme) {
     if (_expenseByProperty.isEmpty) {
       return Card(
@@ -308,10 +332,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
-    // Sort entries by amount descending
-    final sorted = _expenseByProperty.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
     const colors = [
       Color(0xFF4CAF50),
       Color(0xFF2196F3),
@@ -325,16 +345,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       Color(0xFF795548),
     ];
 
-    final values = sorted.map((e) => e.value).toList();
-    final labels = sorted.map((e) {
-      final name = _propertyNames[e.key] ?? e.key;
-      return name;
-    }).toList();
-    final entryColors = List.generate(
-      sorted.length,
-      (i) => colors[i % colors.length],
-    );
-
     String formatAmount(double amount) {
       final s = amount.toStringAsFixed(0);
       final formatted = s.replaceAllMapped(
@@ -344,32 +354,121 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return '฿$formatted';
     }
 
+    // ── Find all categories that have expenses ─────────────────
+    final Map<String, List<String>> catToPropertyIds = {};
+    for (final pid in _expenseByProperty.keys) {
+      final name = _propertyNames[pid] ?? pid;
+      final prefix = _getCategoryPrefix(name);
+      catToPropertyIds.putIfAbsent(prefix, () => []).add(pid);
+    }
+    // Sorted category prefixes by total amount descending
+    final allCategories = catToPropertyIds.keys.toList()
+      ..sort((a, b) {
+        final sumA = catToPropertyIds[a]!
+            .fold(0.0, (s, pid) => s + (_expenseByProperty[pid] ?? 0));
+        final sumB = catToPropertyIds[b]!
+            .fold(0.0, (s, pid) => s + (_expenseByProperty[pid] ?? 0));
+        return sumB.compareTo(sumA);
+      });
+
+    // ── Build chart data based on selected category ────────────
+    final Map<String, double> displayData;
+    final Map<String, String> displayLabels;
+
+    if (_selectedCategory == null) {
+      // Group by category
+      displayData = {
+        for (final cat in allCategories)
+          cat: catToPropertyIds[cat]!
+              .fold(0.0, (s, pid) => s + (_expenseByProperty[pid] ?? 0)),
+      };
+      displayLabels = {
+        for (final cat in allCategories)
+          cat: _categoryNames[cat] ?? cat,
+      };
+    } else {
+      // Drill into a specific category → show individual properties
+      final pids = catToPropertyIds[_selectedCategory] ?? [];
+      displayData = {
+        for (final pid in pids) pid: _expenseByProperty[pid] ?? 0,
+      };
+      displayLabels = {
+        for (final pid in pids) pid: _propertyNames[pid] ?? pid,
+      };
+    }
+
+    final sorted = displayData.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final values = sorted.map((e) => e.value).toList();
+    final labels = sorted.map((e) => displayLabels[e.key] ?? e.key).toList();
+    final entryColors = List.generate(
+      sorted.length,
+      (i) => colors[i % colors.length],
+    );
+    final viewTotal = values.fold(0.0, (s, v) => s + v);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Donut chart
+            // ── Category filter chips ────────────────────────
+            if (allCategories.length > 1)
+              SizedBox(
+                height: 36,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    FilterChip(
+                      label: const Text('ทั้งหมด'),
+                      selected: _selectedCategory == null,
+                      onSelected: (_) =>
+                          setState(() => _selectedCategory = null),
+                    ),
+                    ...allCategories.map(
+                      (cat) => Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: FilterChip(
+                          label: Text(_categoryNames[cat] ?? cat),
+                          selected: _selectedCategory == cat,
+                          onSelected: (_) => setState(() {
+                            _selectedCategory =
+                                _selectedCategory == cat ? null : cat;
+                          }),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (allCategories.length > 1) const SizedBox(height: 12),
+
+            // ── Donut chart ──────────────────────────────────
             SizedBox(
               height: 200,
               child: CustomPaint(
                 painter: _DonutChartPainter(
                   values: values,
                   colors: entryColors,
-                  centerText: formatAmount(_totalExpense),
-                  centerSubText: 'รวม',
+                  centerText: formatAmount(viewTotal),
+                  centerSubText: _selectedCategory == null
+                      ? 'รวม'
+                      : (_categoryNames[_selectedCategory] ??
+                          _selectedCategory!),
                 ),
                 child: const SizedBox.expand(),
               ),
             ),
             const SizedBox(height: 16),
-            // Legend
+
+            // ── Legend ───────────────────────────────────────
             Wrap(
               spacing: 12,
               runSpacing: 8,
               children: List.generate(sorted.length, (i) {
-                final pct = _totalExpense > 0
-                    ? (sorted[i].value / _totalExpense * 100)
+                final pct = viewTotal > 0
+                    ? (sorted[i].value / viewTotal * 100)
                     : 0.0;
                 return Row(
                   mainAxisSize: MainAxisSize.min,
