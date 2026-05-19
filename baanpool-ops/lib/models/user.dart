@@ -84,7 +84,7 @@ enum UserRole {
   bool get canAssignTechnician =>
       this == admin || this == owner || this == manager || this == caretaker;
 
-  /// Returns true if this role can add/view expenses
+    /// Returns true if this role can add expense entries
   bool get canManageExpenses =>
-      this == admin || this == owner || this == manager || this == caretaker;
+      this == admin || this == owner || this == manager;
 }

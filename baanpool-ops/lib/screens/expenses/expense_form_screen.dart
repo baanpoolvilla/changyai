@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/expense.dart';
+import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/thai_datetime.dart';
 
@@ -20,6 +21,7 @@ class ExpenseFormScreen extends StatefulWidget {
 class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _service = SupabaseService(Supabase.instance.client);
+  final _authState = AuthStateService();
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
   ExpenseCostType _costType = ExpenseCostType.workOrder;
@@ -36,6 +38,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   final ImagePicker _picker = ImagePicker();
   XFile? _receiptImage;
   Uint8List? _receiptBytes;
+
+  bool get _canManageExpenses => _authState.currentRole.canManageExpenses;
 
   @override
   void initState() {
@@ -104,6 +108,13 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   }
 
   Future<void> _saveExpense({bool isNoExpense = false}) async {
+    if (!_canManageExpenses) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ไม่มีสิทธิ์บันทึกค่าใช้จ่าย')),
+      );
+      return;
+    }
+
     if (!isNoExpense && !_formKey.currentState!.validate()) return;
 
     // Validate that we have a reference (work order or PM)
@@ -193,6 +204,21 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_canManageExpenses) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('เพิ่มค่าใช้จ่าย')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'เฉพาะ Manager, CEO และ Super Admin เท่านั้นที่บันทึกค่าใช้จ่ายได้',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('เพิ่มค่าใช้จ่าย')),
       body: _loading

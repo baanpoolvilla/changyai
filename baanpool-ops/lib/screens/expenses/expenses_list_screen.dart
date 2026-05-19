@@ -34,6 +34,7 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
   List<Expense> _allExpenses = [];
   List<Map<String, dynamic>> _properties = [];
   List<Map<String, dynamic>> _workOrders = [];
+  List<Map<String, dynamic>> _purchaseOrders = [];
   List<Map<String, dynamic>> _pmSchedules = [];
 
   // Computed report data
@@ -57,6 +58,7 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
         _service.getExpenses(),
         _service.getProperties(),
         _service.getWorkOrders(),
+        _service.getPurchaseOrders(),
         _service.getPmSchedules(),
       ]);
       final cats = await _service.getPropertyCategories();
@@ -64,7 +66,8 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
       _allExpenses = results[0].map((e) => Expense.fromJson(e)).toList();
       _properties = results[1];
       _workOrders = results[2];
-      _pmSchedules = results[3];
+      _purchaseOrders = results[3];
+      _pmSchedules = results[4];
       _categories = cats;
 
       _computeReport();
@@ -121,6 +124,15 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
     return wo?['title'] as String?;
   }
 
+  String? _getPurchaseOrderTitle(String? id) {
+    if (id == null) return null;
+    final po = _purchaseOrders.cast<Map<String, dynamic>?>().firstWhere(
+      (p) => p?['id'] == id,
+      orElse: () => null,
+    );
+    return po?['title'] as String?;
+  }
+
   String? _getPmTitle(String? id) {
     if (id == null) return null;
     final pm = _pmSchedules.cast<Map<String, dynamic>?>().firstWhere(
@@ -128,6 +140,38 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
       orElse: () => null,
     );
     return pm?['title'] as String?;
+  }
+
+  String? _getExpenseReferenceTitle(Expense expense) {
+    return _getWorkOrderTitle(expense.workOrderId) ??
+        _getPurchaseOrderTitle(expense.purchaseOrderId) ??
+        _getPmTitle(expense.pmScheduleId);
+  }
+
+  String _getExpenseDisplayTitle(Expense expense) {
+    final referenceTitle = _getExpenseReferenceTitle(expense);
+    if (referenceTitle != null && referenceTitle.isNotEmpty) {
+      return referenceTitle;
+    }
+
+    final description = expense.description?.trim();
+    if (description != null && description.isNotEmpty) {
+      return description;
+    }
+
+    return expense.isNoExpense ? 'ไม่มีค่าใช้จ่าย' : _categoryLabel(expense.category);
+  }
+
+  String _getExpenseDisplayDetail(Expense expense) {
+    if (expense.isNoExpense) return 'ไม่มีค่าใช้จ่าย';
+
+    final description = expense.description?.trim();
+    final referenceTitle = _getExpenseReferenceTitle(expense);
+    if (description != null && description.isNotEmpty && description != referenceTitle) {
+      return description;
+    }
+
+    return _categoryLabel(expense.category);
   }
 
   String _formatAmount(double amount) {
@@ -371,14 +415,16 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
                 ),
               ],
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          await context.push('/expenses/new');
-          _loadData();
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('เพิ่มค่าใช้จ่าย'),
-      ),
+      floatingActionButton: _authState.currentRole.canManageExpenses
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                await context.push('/expenses/new');
+                _loadData();
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('เพิ่มค่าใช้จ่าย'),
+            )
+          : null,
     );
   }
 
@@ -612,36 +658,34 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
           ...expenses.map(
             (e) => ListTile(
               dense: true,
-              onTap: () {
-                if (e.workOrderId != null) {
-                  context.push('/work-orders/${e.workOrderId}');
-                } else if (e.purchaseOrderId != null) {
-                  context.push('/purchase-orders/${e.purchaseOrderId}');
-                }
-              },
+              onTap: e.workOrderId != null || e.purchaseOrderId != null
+                  ? () {
+                      if (e.workOrderId != null) {
+                        context.push('/work-orders/${e.workOrderId}');
+                      } else if (e.purchaseOrderId != null) {
+                        context.push('/purchase-orders/${e.purchaseOrderId}');
+                      }
+                    }
+                  : null,
               leading: Icon(
                 e.isNoExpense ? Icons.verified_outlined : _categoryIcon(e.category),
                 size: 20,
                 color: e.isNoExpense ? Colors.green : theme.colorScheme.outline,
               ),
               title: Text(
-                e.isNoExpense
-                    ? 'ไม่มีค่าใช้จ่าย'
-                    : (e.description ?? _categoryLabel(e.category)),
+                _getExpenseDisplayTitle(e),
                 style: theme.textTheme.bodyMedium,
               ),
               subtitle: Text(
                 () {
-                  final ref = e.isNoExpense
-                      ? (_getWorkOrderTitle(e.workOrderId) ??
-                          _getPmTitle(e.pmScheduleId) ??
-                          e.costType.displayName)
-                      : _categoryLabel(e.category);
+                  final ref = _getExpenseDisplayDetail(e);
+                  final sourceLabel =
+                      e.purchaseOrderId != null ? 'คำสั่งซื้อ' : e.costType.displayName;
                   final creator = e.createdByName != null
                       ? ' • บันทึกโดย ${e.createdByName}'
                       : '';
                   return '$ref • ${formatThaiDate(e.expenseDate)}'
-                      ' • ${e.costType.displayName}'
+                      ' • $sourceLabel'
                       ' • ${e.paidBy.displayName}'
                       '$creator';
                 }(),
