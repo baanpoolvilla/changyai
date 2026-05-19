@@ -172,20 +172,55 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
   }
 
   Future<void> _pickImages() async {
+    final source = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('ถ่ายรูป (กล้อง)'),
+              onTap: () => Navigator.pop(ctx, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('เลือกจากคลังภาพ'),
+              onTap: () => Navigator.pop(ctx, 'gallery'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+
     try {
-      final images = await _picker.pickMultiImage(imageQuality: 70);
-      if (images.isEmpty) return;
-      final newImages = <XFile>[];
-      final newBytes = <Uint8List>[];
-      for (final img in images) {
-        final bytes = await img.readAsBytes();
-        newImages.add(img);
-        newBytes.add(bytes);
+      if (source == 'camera') {
+        final image = await _picker.pickImage(
+          source: ImageSource.camera,
+          imageQuality: 70,
+        );
+        if (image == null) return;
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _pickedImages.add(image);
+          _imageBytes.add(bytes);
+        });
+      } else {
+        final images = await _picker.pickMultiImage(imageQuality: 70);
+        if (images.isEmpty) return;
+        final newImages = <XFile>[];
+        final newBytes = <Uint8List>[];
+        for (final img in images) {
+          final bytes = await img.readAsBytes();
+          newImages.add(img);
+          newBytes.add(bytes);
+        }
+        setState(() {
+          _pickedImages.addAll(newImages);
+          _imageBytes.addAll(newBytes);
+        });
       }
-      setState(() {
-        _pickedImages.addAll(newImages);
-        _imageBytes.addAll(newBytes);
-      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(

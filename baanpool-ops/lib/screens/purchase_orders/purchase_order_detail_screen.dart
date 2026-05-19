@@ -293,24 +293,60 @@ class _PurchaseOrderDetailScreenState
 
   Future<void> _uploadReceiptAndReceive() async {
     final picker = ImagePicker();
-    final xFile = await picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 80,
+
+    // เลือกแหล่งรูป
+    final source = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('ถ่ายรูป (กล้อง)'),
+              onTap: () => Navigator.pop(ctx, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('เลือกจากคลังภาพ (หลายรูป)'),
+              onTap: () => Navigator.pop(ctx, 'gallery'),
+            ),
+          ],
+        ),
+      ),
     );
-    if (xFile == null) return;
+    if (source == null || !mounted) return;
+
+    List<XFile> pickedFiles = [];
+    if (source == 'camera') {
+      final xFile = await picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+      if (xFile != null) pickedFiles = [xFile];
+    } else {
+      pickedFiles = await picker.pickMultiImage(imageQuality: 80);
+    }
+    if (pickedFiles.isEmpty || !mounted) return;
 
     setState(() => _actionLoading = true);
     try {
-      final bytes = await xFile.readAsBytes();
-      final ext = xFile.path.split('.').last.toLowerCase();
-      final fileName =
-          'po_${widget.orderId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
-      final url = await _service.uploadFile('po-receipts', fileName, bytes);
+      final now = DateTime.now();
+      final urls = <String>[];
+      for (final xFile in pickedFiles) {
+        final bytes = await xFile.readAsBytes();
+        final ext = xFile.path.split('.').last.toLowerCase();
+        final fileName = 'po_${widget.orderId}_${now.millisecondsSinceEpoch}_${urls.length}.$ext';
+        final url = await _service.uploadFile('po-receipts', fileName, bytes);
+        urls.add(url);
+      }
+
+      // เก็บ URL ทั้งหมด (รวมกับรูปเดิมถ้ามี)
+      final existingUrls = _order?.receiptImageUrls ?? [];
+      final allUrls = [...existingUrls, ...urls];
 
       await _service.updatePurchaseOrder(widget.orderId, {
         'status': 'received',
-        'receipt_image_url': url,
-        'updated_at': DateTime.now().toIso8601String(),
+        'receipt_image_url': allUrls.first,
+        'receipt_image_urls': allUrls,
+        'updated_at': now.toIso8601String(),
       });
       await _load();
       if (mounted) {
@@ -338,24 +374,23 @@ class _PurchaseOrderDetailScreenState
       return;
     }
 
-    // Step 1: pick image
+    // Step 1: pick images (multiple supported)
     final picker = ImagePicker();
-    final source = await showDialog<ImageSource>(
+    final source = await showModalBottomSheet<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('เลือกรูปใบเสร็จ'),
-        content: Column(
+      builder: (ctx) => SafeArea(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
               leading: const Icon(Icons.camera_alt),
-              title: const Text('ถ่ายรูป'),
-              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+              title: const Text('ถ่ายรูป (กล้อง)'),
+              onTap: () => Navigator.pop(ctx, 'camera'),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library),
-              title: const Text('เลือกจากอัลบั้ม'),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              title: const Text('เลือกจากคลังภาพ (หลายรูป)'),
+              onTap: () => Navigator.pop(ctx, 'gallery'),
             ),
           ],
         ),
@@ -363,8 +398,14 @@ class _PurchaseOrderDetailScreenState
     );
     if (source == null || !mounted) return;
 
-    final xFile = await picker.pickImage(source: source, imageQuality: 80);
-    if (xFile == null || !mounted) return;
+    List<XFile> pickedFiles = [];
+    if (source == 'camera') {
+      final xFile = await picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+      if (xFile != null) pickedFiles = [xFile];
+    } else {
+      pickedFiles = await picker.pickMultiImage(imageQuality: 80);
+    }
+    if (pickedFiles.isEmpty || !mounted) return;
 
     // Step 2: pricing dialog
     final qtyControllers =
@@ -473,12 +514,21 @@ class _PurchaseOrderDetailScreenState
     setState(() => _actionLoading = true);
     try {
       final now = DateTime.now();
-      final bytes = await xFile.readAsBytes();
-      final ext = xFile.path.split('.').last.toLowerCase();
-      final fileName =
-          'po_${widget.orderId}_${now.millisecondsSinceEpoch}.$ext';
-      final url =
-          await _service.uploadFile('po-receipts', fileName, bytes);
+
+      // Upload all images
+      final urls = <String>[];
+      for (final xFile in pickedFiles) {
+        final bytes = await xFile.readAsBytes();
+        final ext = xFile.path.split('.').last.toLowerCase();
+        final fileName =
+            'po_${widget.orderId}_${now.millisecondsSinceEpoch}_${urls.length}.$ext';
+        final url = await _service.uploadFile('po-receipts', fileName, bytes);
+        urls.add(url);
+      }
+
+      // รวมกับรูปเดิม (ถ้ามี)
+      final existingUrls = _order?.receiptImageUrls ?? [];
+      final allUrls = [...existingUrls, ...urls];
 
       double totalPrice = 0;
       final updatedItems = <Map<String, dynamic>>[];
@@ -495,7 +545,8 @@ class _PurchaseOrderDetailScreenState
 
       await _service.updatePurchaseOrder(widget.orderId, {
         'status': 'received',
-        'receipt_image_url': url,
+        'receipt_image_url': allUrls.first,
+        'receipt_image_urls': allUrls,
         'items': updatedItems,
         'total_price': totalPrice,
         'updated_at': now.toIso8601String(),
@@ -815,8 +866,9 @@ class _PurchaseOrderDetailScreenState
                         const SizedBox(height: 16),
                       ],
 
-                      // Receipt photo
-                      if (_order!.receiptImageUrl != null) ...[
+                      // Receipt photos
+                      if ((_order!.receiptImageUrls.isNotEmpty) ||
+                          _order!.receiptImageUrl != null) ...[
                         Text('รูปใบเสร็จ',
                             style: theme.textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.bold)),
@@ -826,26 +878,33 @@ class _PurchaseOrderDetailScreenState
                           child: ListView(
                             scrollDirection: Axis.horizontal,
                             children: [
-                              GestureDetector(
-                                onTap: () => _showFullImage(
-                                    context, _order!.receiptImageUrl!),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    _order!.receiptImageUrl!,
-                                    width: 150,
-                                    height: 150,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) =>
-                                        const SizedBox(
+                              // แสดงจาก receiptImageUrls ก่อน (รองรับหลายรูป)
+                              // ถ้าไม่มีให้ fallback ไปที่ receiptImageUrl เดิม
+                              ...(_order!.receiptImageUrls.isNotEmpty
+                                  ? _order!.receiptImageUrls
+                                  : [if (_order!.receiptImageUrl != null) _order!.receiptImageUrl!]
+                              ).map((url) => Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: GestureDetector(
+                                  onTap: () => _showFullImage(context, url),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.network(
+                                      url,
                                       width: 150,
                                       height: 150,
-                                      child: Center(
-                                          child: Icon(Icons.broken_image)),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          const SizedBox(
+                                        width: 150,
+                                        height: 150,
+                                        child: Center(
+                                            child: Icon(Icons.broken_image)),
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
+                              )),
                             ],
                           ),
                         ),

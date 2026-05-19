@@ -83,6 +83,7 @@ class PurchaseOrder {
   final double totalPrice;
   final String? notes;
   final String? receiptImageUrl;
+  final List<String> receiptImageUrls;
   final bool isSelfPurchase;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -99,6 +100,7 @@ class PurchaseOrder {
     this.totalPrice = 0,
     this.notes,
     this.receiptImageUrl,
+    this.receiptImageUrls = const [],
     this.isSelfPurchase = false,
     required this.createdAt,
     required this.updatedAt,
@@ -126,6 +128,10 @@ class PurchaseOrder {
       totalPrice: (json['total_price'] as num?)?.toDouble() ?? 0,
       notes: json['notes'] as String?,
       receiptImageUrl: json['receipt_image_url'] as String?,
+      receiptImageUrls: (json['receipt_image_urls'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
       isSelfPurchase: json['is_self_purchase'] as bool? ?? false,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
@@ -142,6 +148,7 @@ class PurchaseOrder {
     'total_price': totalPrice,
     'notes': notes,
     'receipt_image_url': receiptImageUrl,
+    'receipt_image_urls': receiptImageUrls,
     'is_self_purchase': isSelfPurchase,
   };
 }
