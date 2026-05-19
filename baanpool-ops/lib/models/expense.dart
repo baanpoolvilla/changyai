@@ -5,6 +5,7 @@ class Expense {
   final String id;
   final String? workOrderId;
   final String? pmScheduleId;
+  final String? purchaseOrderId;
   final String? propertyId;
   final double amount;
   final String? description;
@@ -22,6 +23,7 @@ class Expense {
     required this.id,
     this.workOrderId,
     this.pmScheduleId,
+    this.purchaseOrderId,
     this.propertyId,
     required this.amount,
     this.description,
@@ -45,6 +47,7 @@ class Expense {
       id: json['id'] as String,
       workOrderId: json['work_order_id'] as String?,
       pmScheduleId: json['pm_schedule_id'] as String?,
+      purchaseOrderId: json['purchase_order_id'] as String?,
       propertyId: json['property_id'] as String?,
       amount: (json['amount'] as num).toDouble(),
       description: json['description'] as String?,
@@ -63,6 +66,7 @@ class Expense {
   Map<String, dynamic> toJson() => {
     if (workOrderId != null) 'work_order_id': workOrderId,
     if (pmScheduleId != null) 'pm_schedule_id': pmScheduleId,
+    if (purchaseOrderId != null) 'purchase_order_id': purchaseOrderId,
     'property_id': propertyId,
     'amount': amount,
     'description': description,

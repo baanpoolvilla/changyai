@@ -612,6 +612,13 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
           ...expenses.map(
             (e) => ListTile(
               dense: true,
+              onTap: () {
+                if (e.workOrderId != null) {
+                  context.push('/work-orders/${e.workOrderId}');
+                } else if (e.purchaseOrderId != null) {
+                  context.push('/purchase-orders/${e.purchaseOrderId}');
+                }
+              },
               leading: Icon(
                 e.isNoExpense ? Icons.verified_outlined : _categoryIcon(e.category),
                 size: 20,

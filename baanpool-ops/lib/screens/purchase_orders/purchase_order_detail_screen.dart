@@ -225,6 +225,7 @@ class _PurchaseOrderDetailScreenState
       if (totalPrice > 0) {
         await _service.createExpense({
           'property_id': _order!.propertyId,
+          'purchase_order_id': widget.orderId,
           'amount': totalPrice,
           'description': 'สั่งซื้ออุปกรณ์: ${_order!.title}',
           'category': 'material',
@@ -555,6 +556,7 @@ class _PurchaseOrderDetailScreenState
       if (totalPrice > 0) {
         await _service.createExpense({
           'property_id': _order!.propertyId,
+          'purchase_order_id': widget.orderId,
           'amount': totalPrice,
           'description': 'สั่งซื้ออุปกรณ์ (ซื้อเอง): ${_order!.title}',
           'category': 'material',
