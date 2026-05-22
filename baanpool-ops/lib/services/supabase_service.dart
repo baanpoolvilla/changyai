@@ -794,4 +794,18 @@ class SupabaseService {
   Future<void> deletePurchaseOrder(String id) async {
     await _client.from('purchase_orders').delete().eq('id', id);
   }
+
+  // ─── Purchase Order Comments ──────────────────────────
+
+  Future<List<Map<String, dynamic>>> getPOComments(String poId) async {
+    return await _client
+        .from('purchase_order_comments')
+        .select('*, user:user_id(full_name)')
+        .eq('purchase_order_id', poId)
+        .order('created_at', ascending: true);
+  }
+
+  Future<void> createPOComment(Map<String, dynamic> data) async {
+    await _client.from('purchase_order_comments').insert(data);
+  }
 }
