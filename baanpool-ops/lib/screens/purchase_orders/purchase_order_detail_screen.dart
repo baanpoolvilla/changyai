@@ -22,6 +22,7 @@ class _PurchaseOrderDetailScreenState
   final _service = SupabaseService(Supabase.instance.client);
   final _authState = AuthStateService();
   final _commentCtrl = TextEditingController();
+  final _imagePicker = ImagePicker();
 
   PurchaseOrder? _order;
   bool _loading = true;
@@ -29,6 +30,7 @@ class _PurchaseOrderDetailScreenState
   bool _commentLoading = false;
   String _propertyName = '';
   List<Map<String, dynamic>> _comments = [];
+  XFile? _commentImage;
 
   @override
   void initState() {
@@ -83,15 +85,24 @@ class _PurchaseOrderDetailScreenState
 
   Future<void> _addComment() async {
     final text = _commentCtrl.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty && _commentImage == null) return;
     setState(() => _commentLoading = true);
     try {
+      String? imageUrl;
+      if (_commentImage != null) {
+        final bytes = await _commentImage!.readAsBytes();
+        final ext = _commentImage!.path.split('.').last.toLowerCase();
+        final fileName = 'comment_${DateTime.now().millisecondsSinceEpoch}.$ext';
+        imageUrl = await _service.uploadFile('po-receipts', fileName, bytes);
+      }
       await _service.createPOComment({
         'purchase_order_id': widget.orderId,
         'user_id': Supabase.instance.client.auth.currentUser?.id,
-        'content': text,
+        'content': text.isEmpty ? '📷' : text,
+        if (imageUrl != null) 'image_url': imageUrl,
       });
       _commentCtrl.clear();
+      setState(() => _commentImage = null);
       await _loadComments();
     } catch (e) {
       if (mounted) {
@@ -1294,12 +1305,80 @@ class _PurchaseOrderDetailScreenState
                                   : 'ไม่ทราบ',
                               createdAt: DateTime.parse(
                                   c['created_at'] as String),
+                              imageUrl: c['image_url'] as String?,
                             )),
                       const SizedBox(height: 12),
                       // Add comment input
+                      if (_commentImage != null) ...[
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.blue.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.image,
+                                  color: Colors.blue.shade700, size: 16),
+                              const SizedBox(width: 6),
+                              Text('รูปที่เลือก 1 รูป',
+                                  style: TextStyle(
+                                      color: Colors.blue.shade700,
+                                      fontSize: 12)),
+                              const Spacer(),
+                              GestureDetector(
+                                onTap: () =>
+                                    setState(() => _commentImage = null),
+                                child: Icon(Icons.close,
+                                    color: Colors.red.shade400, size: 16),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
+                          IconButton(
+                            onPressed: _commentLoading
+                                ? null
+                                : () async {
+                                    final picked =
+                                        await _imagePicker.pickImage(
+                                            source: ImageSource.gallery,
+                                            imageQuality: 80);
+                                    if (picked != null) {
+                                      setState(() => _commentImage = picked);
+                                    }
+                                  },
+                            icon: Icon(
+                              Icons.photo_library_outlined,
+                              color: _commentImage != null
+                                  ? Colors.blue
+                                  : Colors.grey,
+                              size: 20,
+                            ),
+                            tooltip: 'แนบรูป',
+                          ),
+                          IconButton(
+                            onPressed: _commentLoading
+                                ? null
+                                : () async {
+                                    final picked =
+                                        await _imagePicker.pickImage(
+                                            source: ImageSource.camera,
+                                            imageQuality: 80);
+                                    if (picked != null) {
+                                      setState(() => _commentImage = picked);
+                                    }
+                                  },
+                            icon: const Icon(Icons.camera_alt_outlined,
+                                color: Colors.grey, size: 20),
+                            tooltip: 'ถ่ายรูป',
+                          ),
                           Expanded(
                             child: TextField(
                               controller: _commentCtrl,
@@ -1428,10 +1507,12 @@ class _CommentBubble extends StatelessWidget {
   final String content;
   final String authorName;
   final DateTime createdAt;
+  final String? imageUrl;
   const _CommentBubble(
       {required this.content,
       required this.authorName,
-      required this.createdAt});
+      required this.createdAt,
+      this.imageUrl});
 
   @override
   Widget build(BuildContext context) {
@@ -1477,8 +1558,33 @@ class _CommentBubble extends StatelessWidget {
                     color: Colors.grey.shade100,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(content,
-                      style: theme.textTheme.bodyMedium),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (content != '📷')
+                        Text(content, style: theme.textTheme.bodyMedium),
+                      if (imageUrl != null) ...[
+                        if (content != '📷') const SizedBox(height: 6),
+                        GestureDetector(
+                          onTap: () => showDialog(
+                            context: context,
+                            builder: (_) => Dialog(
+                              child: Image.network(imageUrl!,
+                                  fit: BoxFit.contain),
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: Image.network(
+                              imageUrl!,
+                              height: 160,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ],
             ),

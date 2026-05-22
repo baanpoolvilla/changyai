@@ -479,13 +479,15 @@ class SupabaseService {
   /// Add a comment to a work order
   Future<void> addWorkOrderComment(
     String workOrderId,
-    String content,
-  ) async {
+    String content, {
+    String? imageUrl,
+  }) async {
     final userId = _client.auth.currentUser?.id;
     await _client.from('work_order_comments').insert({
       'work_order_id': workOrderId,
       'content': content,
       if (userId != null) 'user_id': userId,
+      if (imageUrl != null) 'image_url': imageUrl,
     });
   }
 
@@ -764,6 +766,14 @@ class SupabaseService {
   }
 
   // ─── Purchase Orders (สั่งอุปกรณ์) ──────────────────
+
+  Future<int> getPendingPRCount() async {
+    final res = await _client
+        .from('purchase_orders')
+        .select('id')
+        .eq('status', 'pending');
+    return (res as List).length;
+  }
 
   Future<List<Map<String, dynamic>>> getPurchaseOrders({
     String? status,

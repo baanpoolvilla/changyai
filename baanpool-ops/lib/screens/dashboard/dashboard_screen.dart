@@ -7,7 +7,7 @@ import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/page_wrapper.dart';
 
-/// Dashboard — งานด่วน, งานวันนี้, PM ใกล้ครบ, ใบงานล่าสุด
+/// Dashboard — PR รอ CEO, งานวันนี้, PM ใกล้ครบ, ใบงานล่าสุด
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -19,7 +19,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _service = SupabaseService(Supabase.instance.client);
   bool _loading = true;
 
-  int _urgentCount = 0;
+  int _pendingPRCount = 0;
   int _todayCount = 0;
   int _pmDueSoonCount = 0;
   int _noExpenseCount = 0;
@@ -40,7 +40,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() => _loading = true);
     try {
       final results = await Future.wait([
-        _service.getUrgentJobsCount(),
+        _service.getPendingPRCount(),
         _service.getTodayJobsCount(),
         _service.getRecentWorkOrders(limit: 5),
         _service.getPropertyNamesOnly(),
@@ -48,7 +48,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _service.getExpenses(),
       ]);
 
-      _urgentCount = results[0] as int;
+      _pendingPRCount = results[0] as int;
       _todayCount = results[1] as int;
       _recentWorkOrders = results[2] as List<Map<String, dynamic>>;
       final allProperties = results[3] as List<Map<String, dynamic>>;
@@ -154,9 +154,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             return Row(
                               children: [
                                 Expanded(child: _SummaryCard(
-                                  title: 'งานด่วน', value: '$_urgentCount',
-                                  icon: Icons.warning_amber_rounded, color: AppTheme.urgentColor,
-                                  onTap: () => context.go('/work-orders?filter=urgent'),
+                                  title: 'PR รอ CEO อนุมัติ', value: '$_pendingPRCount',
+                                  icon: Icons.shopping_cart_outlined, color: Colors.orange,
+                                  onTap: () => context.go('/purchase-orders'),
                                 )),
                                 const SizedBox(width: 12),
                                 Expanded(child: _SummaryCard(
@@ -183,9 +183,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             children: [
                               Row(children: [
                                 Expanded(child: _SummaryCard(
-                                  title: 'งานด่วน', value: '$_urgentCount',
-                                  icon: Icons.warning_amber_rounded, color: AppTheme.urgentColor,
-                                  onTap: () => context.go('/work-orders?filter=urgent'),
+                                  title: 'PR รอ CEO อนุมัติ', value: '$_pendingPRCount',
+                                  icon: Icons.shopping_cart_outlined, color: Colors.orange,
+                                  onTap: () => context.go('/purchase-orders'),
                                 )),
                                 const SizedBox(width: 12),
                                 Expanded(child: _SummaryCard(

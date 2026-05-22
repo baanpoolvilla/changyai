@@ -7,6 +7,7 @@ class WorkOrderComment {
   final String? userId;
   final String? userName; // joined from users table
   final String content;
+  final String? imageUrl;
   final DateTime createdAt;
 
   const WorkOrderComment({
@@ -15,6 +16,7 @@ class WorkOrderComment {
     this.userId,
     this.userName,
     required this.content,
+    this.imageUrl,
     required this.createdAt,
   });
 
@@ -29,6 +31,7 @@ class WorkOrderComment {
       userId: json['user_id'] as String?,
       userName: uName,
       content: json['content'] as String,
+      imageUrl: json['image_url'] as String?,
       createdAt: parseServerTimestampToThai(json['created_at'] as String),
     );
   }

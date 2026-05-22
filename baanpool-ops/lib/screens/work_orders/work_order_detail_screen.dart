@@ -33,6 +33,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
   List<WorkOrderComment> _comments = [];
   final _commentController = TextEditingController();
   bool _addingComment = false;
+  XFile? _commentImage;
 
   // For completion photo
   final ImagePicker _picker = ImagePicker();
@@ -513,11 +514,23 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
 
   Future<void> _addComment() async {
     final content = _commentController.text.trim();
-    if (content.isEmpty) return;
+    if (content.isEmpty && _commentImage == null) return;
     setState(() => _addingComment = true);
     try {
-      await _service.addWorkOrderComment(widget.workOrderId, content);
+      String? imageUrl;
+      if (_commentImage != null) {
+        final bytes = await _commentImage!.readAsBytes();
+        final ext = _commentImage!.path.split('.').last.toLowerCase();
+        final fileName = 'comment_${DateTime.now().millisecondsSinceEpoch}.$ext';
+        imageUrl = await _service.uploadFile('po-receipts', fileName, bytes);
+      }
+      await _service.addWorkOrderComment(
+        widget.workOrderId,
+        content.isEmpty ? '📷' : content,
+        imageUrl: imageUrl,
+      );
       _commentController.clear();
+      setState(() => _commentImage = null);
       await _load();
     } catch (e) {
       if (mounted) {
@@ -831,9 +844,70 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                     const SizedBox(height: 8),
 
                     // Add comment input
+                    if (_commentImage != null) ...[
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.image, color: Colors.blue.shade700, size: 16),
+                            const SizedBox(width: 6),
+                            Text('รูปที่เลือก 1 รูป',
+                                style: TextStyle(color: Colors.blue.shade700, fontSize: 12)),
+                            const Spacer(),
+                            GestureDetector(
+                              onTap: () => setState(() => _commentImage = null),
+                              child: Icon(Icons.close, color: Colors.red.shade400, size: 16),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
+                        IconButton(
+                          onPressed: _addingComment
+                              ? null
+                              : () async {
+                                  final picked = await _picker.pickImage(
+                                      source: ImageSource.gallery,
+                                      imageQuality: 80);
+                                  if (picked != null) {
+                                    setState(() => _commentImage = picked);
+                                  }
+                                },
+                          icon: Icon(
+                            Icons.photo_library_outlined,
+                            color: _commentImage != null
+                                ? Colors.blue
+                                : Colors.grey,
+                          ),
+                          tooltip: 'แนบรูป',
+                        ),
+                        IconButton(
+                          onPressed: _addingComment
+                              ? null
+                              : () async {
+                                  final picked = await _picker.pickImage(
+                                      source: ImageSource.camera,
+                                      imageQuality: 80);
+                                  if (picked != null) {
+                                    setState(() => _commentImage = picked);
+                                  }
+                                },
+                          icon: Icon(
+                            Icons.camera_alt_outlined,
+                            color: Colors.grey,
+                          ),
+                          tooltip: 'ถ่ายรูป',
+                        ),
                         Expanded(
                           child: TextField(
                             controller: _commentController,
@@ -999,7 +1073,32 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
           const SizedBox(height: 4),
           Padding(
             padding: const EdgeInsets.only(left: 22),
-            child: Text(comment.content, style: const TextStyle(fontSize: 14)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (comment.content != '📷')
+                  Text(comment.content, style: const TextStyle(fontSize: 14)),
+                if (comment.imageUrl != null) ...[
+                  const SizedBox(height: 6),
+                  GestureDetector(
+                    onTap: () => showDialog(
+                      context: context,
+                      builder: (_) => Dialog(
+                        child: Image.network(comment.imageUrl!, fit: BoxFit.contain),
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        comment.imageUrl!,
+                        height: 160,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
