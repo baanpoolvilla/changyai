@@ -25,14 +25,19 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
 
   late TabController _tabController;
 
-  List<PurchaseOrder> get _pendingOrders =>
+  // PR: รอ CEO อนุมัติ
+  List<PurchaseOrder> get _prOrders =>
       _orders.where((o) => o.status == POStatus.pending).toList();
-  List<PurchaseOrder> get _activeOrders => _orders
-      .where(
-        (o) =>
-            o.status == POStatus.approved || o.status == POStatus.ordered,
-      )
-      .toList();
+
+  // PO ที่ได้รับ: CEO อนุมัติแล้ว รอดำเนินการ
+  List<PurchaseOrder> get _poReceivedOrders =>
+      _orders.where((o) => o.status == POStatus.approved).toList();
+
+  // กำลังดำเนินการ: กำลังซื้อของ
+  List<PurchaseOrder> get _activeOrders =>
+      _orders.where((o) => o.status == POStatus.ordered).toList();
+
+  // เสร็จสิ้น: รับของแล้ว + ยกเลิก
   List<PurchaseOrder> get _doneOrders => _orders
       .where(
         (o) =>
@@ -43,7 +48,7 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _load();
   }
 
@@ -81,18 +86,23 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('สั่งอุปกรณ์'),
+        title: const Text('สั่งอุปกรณ์ (PR/PO)'),
         bottom: !isDesktop
             ? TabBar(
                 controller: _tabController,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
                 tabs: [
                   Tab(
-                    child: _TabBadge('รอดำเนินการ', _pendingOrders.length,
-                        Colors.orange),
+                    child: _TabBadge('PR', _prOrders.length, Colors.orange),
                   ),
                   Tab(
-                    child: _TabBadge('กำลังดำเนินการ', _activeOrders.length,
-                        Colors.blue),
+                    child: _TabBadge(
+                        'PO ที่ได้รับ', _poReceivedOrders.length, Colors.blue),
+                  ),
+                  Tab(
+                    child: _TabBadge(
+                        'ดำเนินการ', _activeOrders.length, Colors.indigo),
                   ),
                   Tab(
                     child:
@@ -113,7 +123,7 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
           _load();
         },
         icon: const Icon(Icons.add),
-        label: const Text('สร้างคำสั่งซื้อ'),
+        label: const Text('เปิด PR'),
       ),
     );
   }
@@ -124,10 +134,25 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
       children: [
         Expanded(
           child: _PoColumn(
-            title: 'รอดำเนินการ',
+            title: 'PR',
+            subtitle: 'รอ CEO อนุมัติ',
             color: Colors.orange,
-            icon: Icons.pending_actions,
-            orders: _pendingOrders,
+            icon: Icons.receipt_long_outlined,
+            orders: _prOrders,
+            propertyNames: _propertyNames,
+            authState: _authState,
+            onRefresh: _load,
+            onTap: _openDetail,
+          ),
+        ),
+        const VerticalDivider(width: 1),
+        Expanded(
+          child: _PoColumn(
+            title: 'PO ที่ได้รับ',
+            subtitle: 'CEO อนุมัติแล้ว',
+            color: Colors.blue,
+            icon: Icons.assignment_turned_in_outlined,
+            orders: _poReceivedOrders,
             propertyNames: _propertyNames,
             authState: _authState,
             onRefresh: _load,
@@ -138,7 +163,8 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
         Expanded(
           child: _PoColumn(
             title: 'กำลังดำเนินการ',
-            color: Colors.blue,
+            subtitle: 'กำลังซื้อของ',
+            color: Colors.indigo,
             icon: Icons.local_shipping_outlined,
             orders: _activeOrders,
             propertyNames: _propertyNames,
@@ -151,6 +177,7 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
         Expanded(
           child: _PoColumn(
             title: 'เสร็จสิ้น',
+            subtitle: 'รับของแล้ว / ยกเลิก',
             color: Colors.grey,
             icon: Icons.check_circle_outline,
             orders: _doneOrders,
@@ -168,7 +195,8 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
     return TabBarView(
       controller: _tabController,
       children: [
-        _buildList(_pendingOrders),
+        _buildList(_prOrders),
+        _buildList(_poReceivedOrders),
         _buildList(_activeOrders),
         _buildList(_doneOrders),
       ],
@@ -206,6 +234,7 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
 // ─── Column Widget ─────────────────────────────────────
 class _PoColumn extends StatelessWidget {
   final String title;
+  final String subtitle;
   final Color color;
   final IconData icon;
   final List<PurchaseOrder> orders;
@@ -216,6 +245,7 @@ class _PoColumn extends StatelessWidget {
 
   const _PoColumn({
     required this.title,
+    required this.subtitle,
     required this.color,
     required this.icon,
     required this.orders,
@@ -242,13 +272,25 @@ class _PoColumn extends StatelessWidget {
             children: [
               Icon(icon, color: color, size: 18),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: color.withValues(alpha: 0.7),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(width: 8),
               Container(
@@ -337,6 +379,31 @@ class _PoCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  if (order.isEmergencyPurchase) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border:
+                            Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.warning_amber,
+                              size: 10, color: Colors.red.shade700),
+                          const SizedBox(width: 3),
+                          Text('ฉุกเฉิน',
+                              style: TextStyle(
+                                  color: Colors.red.shade700,
+                                  fontSize: 10)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 3),
@@ -374,6 +441,23 @@ class _PoCard extends StatelessWidget {
                   '${order.items.length} รายการ  •  ฿${order.totalPrice.toStringAsFixed(0)}',
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: theme.colorScheme.outline),
+                ),
+              ],
+              // แสดงผู้รับ PO (ถ้ามี)
+              if (order.poAssignedToName != null &&
+                  order.poAssignedToName!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.assignment_ind_outlined,
+                        size: 13, color: Colors.blue),
+                    const SizedBox(width: 4),
+                    Text(
+                      'มอบหมาย: ${order.poAssignedToName}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                          color: Colors.blue.shade700),
+                    ),
+                  ],
                 ),
               ],
               const SizedBox(height: 6),

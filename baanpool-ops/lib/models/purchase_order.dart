@@ -43,11 +43,11 @@ enum POStatus {
   String get displayName {
     switch (this) {
       case POStatus.pending:
-        return 'รอดำเนินการ';
+        return 'รอ CEO อนุมัติ';
       case POStatus.approved:
-        return 'CEO อนุมัติแล้ว';
+        return 'PO ที่ได้รับ';
       case POStatus.ordered:
-        return 'กำลังสั่งซื้อ';
+        return 'กำลังดำเนินการ';
       case POStatus.received:
         return 'รับของแล้ว';
       case POStatus.cancelled:
@@ -78,6 +78,8 @@ class PurchaseOrder {
   final String? propertyId;
   final String? createdBy;
   final String? createdByName;
+  final String? poAssignedTo;
+  final String? poAssignedToName;
   final POStatus status;
   final List<PurchaseOrderItem> items;
   final double totalPrice;
@@ -85,6 +87,8 @@ class PurchaseOrder {
   final String? receiptImageUrl;
   final List<String> receiptImageUrls;
   final bool isSelfPurchase;
+  final bool isEmergencyPurchase;
+  final String? emergencyReason;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -95,6 +99,8 @@ class PurchaseOrder {
     this.propertyId,
     this.createdBy,
     this.createdByName,
+    this.poAssignedTo,
+    this.poAssignedToName,
     required this.status,
     this.items = const [],
     this.totalPrice = 0,
@@ -102,6 +108,8 @@ class PurchaseOrder {
     this.receiptImageUrl,
     this.receiptImageUrls = const [],
     this.isSelfPurchase = false,
+    this.isEmergencyPurchase = false,
+    this.emergencyReason,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -123,6 +131,10 @@ class PurchaseOrder {
       createdByName: (json['creator'] is Map)
           ? json['creator']['full_name'] as String?
           : null,
+      poAssignedTo: json['po_assigned_to'] as String?,
+      poAssignedToName: (json['assignee'] is Map)
+          ? json['assignee']['full_name'] as String?
+          : null,
       status: POStatus.fromString(json['status'] as String? ?? 'pending'),
       items: itemList,
       totalPrice: (json['total_price'] as num?)?.toDouble() ?? 0,
@@ -133,6 +145,8 @@ class PurchaseOrder {
               .toList() ??
           [],
       isSelfPurchase: json['is_self_purchase'] as bool? ?? false,
+      isEmergencyPurchase: json['is_emergency_purchase'] as bool? ?? false,
+      emergencyReason: json['emergency_reason'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
     );
@@ -143,6 +157,7 @@ class PurchaseOrder {
     'description': description,
     'property_id': propertyId,
     'created_by': createdBy,
+    'po_assigned_to': poAssignedTo,
     'status': status.name,
     'items': items.map((e) => e.toJson()).toList(),
     'total_price': totalPrice,
@@ -150,5 +165,7 @@ class PurchaseOrder {
     'receipt_image_url': receiptImageUrl,
     'receipt_image_urls': receiptImageUrls,
     'is_self_purchase': isSelfPurchase,
+    'is_emergency_purchase': isEmergencyPurchase,
+    'emergency_reason': emergencyReason,
   };
 }

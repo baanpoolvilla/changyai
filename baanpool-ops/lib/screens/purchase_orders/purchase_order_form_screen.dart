@@ -18,14 +18,14 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
+  final _emergencyReasonCtrl = TextEditingController();
 
   bool _loading = false;
   bool _loadingProps = true;
   String? _selectedPropertyId;
   List<Map<String, dynamic>> _properties = [];
 
-  // true = ซื้อเอง, false = ให้ CEO อนุมัติ
-  bool _isSelfPurchase = false;
+  bool _isEmergency = false;
 
   final List<_ItemRow> _itemRows = [];
 
@@ -41,6 +41,7 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
     _titleCtrl.dispose();
     _descCtrl.dispose();
     _notesCtrl.dispose();
+    _emergencyReasonCtrl.dispose();
     for (final r in _itemRows) r.dispose();
     super.dispose();
   }
@@ -90,8 +91,11 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
         'items': items,
         'total_price': 0,
         'notes': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-        'status': _isSelfPurchase ? 'ordered' : 'pending',
-        'is_self_purchase': _isSelfPurchase,
+        'status': 'pending',
+        'is_emergency_purchase': _isEmergency,
+        'emergency_reason': _isEmergency && _emergencyReasonCtrl.text.trim().isNotEmpty
+            ? _emergencyReasonCtrl.text.trim()
+            : null,
       });
       if (mounted) context.pop();
     } catch (e) {
@@ -107,10 +111,9 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('สร้างคำสั่งซื้ออุปกรณ์')),
+      appBar: AppBar(title: const Text('เปิด PR (คำขอซื้ออุปกรณ์)')),
       body: _loadingProps
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -120,44 +123,10 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Type Selector
-                    Text('ประเภทการสั่งซื้อ',
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _TypeCard(
-                            selected: !_isSelfPurchase,
-                            icon: Icons.approval_outlined,
-                            selectedIcon: Icons.approval,
-                            title: 'ให้ CEO อนุมัติ',
-                            subtitle: 'CEO ตรวจสอบและกรอกราคาก่อนซื้อ',
-                            color: colorScheme.primary,
-                            onTap: () => setState(() => _isSelfPurchase = false),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _TypeCard(
-                            selected: _isSelfPurchase,
-                            icon: Icons.shopping_bag_outlined,
-                            selectedIcon: Icons.shopping_bag,
-                            title: 'ซื้อเอง',
-                            subtitle: 'ไม่ต้องรอ CEO\nกรอกราคาตอนรับของ',
-                            color: Colors.green.shade700,
-                            onTap: () => setState(() => _isSelfPurchase = true),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-
                     TextFormField(
                       controller: _titleCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'ชื่อคำสั่งซื้อ *',
+                        labelText: 'ชื่อ PR *',
                         hintText: 'เช่น สั่งซื้ออุปกรณ์ซ่อมแอร์',
                       ),
                       validator: (v) =>
@@ -207,9 +176,7 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _isSelfPurchase
-                          ? 'ใส่ชื่ออุปกรณ์ — กรอกราคาตอนรับของ'
-                          : 'ใส่ชื่ออุปกรณ์ — CEO จะใส่จำนวนและราคาตอนอนุมัติ',
+                      'ใส่ชื่ออุปกรณ์ — CEO จะใส่จำนวนและราคาตอนอนุมัติ',
                       style: theme.textTheme.bodySmall
                           ?.copyWith(color: theme.colorScheme.outline),
                     ),
@@ -236,7 +203,79 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                         hintText: 'หมายเหตุเพิ่มเติม (ถ้ามี)',
                       ),
                     ),
+                    const SizedBox(height: 20),
+
+                    // Emergency section
+                    Container(
+                      decoration: BoxDecoration(
+                        color: _isEmergency
+                            ? Colors.red.shade50
+                            : Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _isEmergency
+                              ? Colors.red.shade300
+                              : Colors.grey.shade300,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CheckboxListTile(
+                            value: _isEmergency,
+                            onChanged: (v) =>
+                                setState(() => _isEmergency = v ?? false),
+                            title: Text(
+                              'กรณีฉุกเฉิน — ซื้อของแล้ว / จบงานแล้ว',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: _isEmergency
+                                    ? Colors.red.shade700
+                                    : null,
+                              ),
+                            ),
+                            subtitle: Text(
+                              'เมื่อ CEO อนุมัติจะข้ามไปยัง "เสร็จสิ้น" ทันที',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _isEmergency
+                                    ? Colors.red.shade600
+                                    : Colors.grey.shade600,
+                              ),
+                            ),
+                            activeColor: Colors.red.shade700,
+                            controlAffinity: ListTileControlAffinity.leading,
+                          ),
+                          if (_isEmergency) ...[
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                              child: TextFormField(
+                                controller: _emergencyReasonCtrl,
+                                maxLines: 2,
+                                decoration: InputDecoration(
+                                  labelText: 'เหตุผลกรณีฉุกเฉิน *',
+                                  hintText: 'ระบุเหตุผลที่ต้องซื้อก่อน',
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                validator: (v) {
+                                  if (_isEmergency &&
+                                      (v == null || v.trim().isEmpty)) {
+                                    return 'กรุณาระบุเหตุผล';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 24),
+
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
@@ -248,15 +287,15 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                                 child: CircularProgressIndicator(
                                     strokeWidth: 2, color: Colors.white),
                               )
-                            : Icon(_isSelfPurchase
-                                ? Icons.shopping_bag
+                            : Icon(_isEmergency
+                                ? Icons.warning_amber
                                 : Icons.send_outlined),
-                        label: Text(_isSelfPurchase
-                            ? 'สร้างคำสั่งซื้อ (ซื้อเอง)'
-                            : 'ส่งให้ CEO อนุมัติ'),
-                        style: _isSelfPurchase
+                        label: Text(_isEmergency
+                            ? 'เปิด PR (ฉุกเฉิน)'
+                            : 'เปิด PR — ส่งให้ CEO อนุมัติ'),
+                        style: _isEmergency
                             ? FilledButton.styleFrom(
-                                backgroundColor: Colors.green.shade700)
+                                backgroundColor: Colors.red.shade700)
                             : null,
                       ),
                     ),
@@ -264,66 +303,6 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                 ),
               ),
             ),
-    );
-  }
-}
-
-// Type selector card
-class _TypeCard extends StatelessWidget {
-  final bool selected;
-  final IconData icon;
-  final IconData selectedIcon;
-  final String title;
-  final String subtitle;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _TypeCard({
-    required this.selected,
-    required this.icon,
-    required this.selectedIcon,
-    required this.title,
-    required this.subtitle,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-        decoration: BoxDecoration(
-          color: selected ? color.withValues(alpha: 0.1) : Colors.transparent,
-          border: Border.all(
-            color: selected ? color : Colors.grey.shade300,
-            width: selected ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(selected ? selectedIcon : icon,
-                color: selected ? color : Colors.grey, size: 28),
-            const SizedBox(height: 8),
-            Text(title,
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: selected ? color : null,
-                    fontSize: 14)),
-            const SizedBox(height: 4),
-            Text(subtitle,
-                style: TextStyle(
-                    fontSize: 11,
-                    color: selected
-                        ? color.withValues(alpha: 0.8)
-                        : Colors.grey.shade600)),
-          ],
-        ),
-      ),
     );
   }
 }

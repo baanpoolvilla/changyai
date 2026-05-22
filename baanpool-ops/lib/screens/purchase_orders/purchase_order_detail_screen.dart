@@ -80,7 +80,7 @@ class _PurchaseOrderDetailScreenState
     if (mounted) setState(() => _actionLoading = false);
   }
 
-  /// CEO กดอนุมัติ → dialog กรอกจำนวน+ราคา → บันทึก expense
+  /// CEO อนุมัติ PR → กรอกราคา + เลือกคนรับ PO (normal) หรือข้าม→ received (emergency)
   Future<void> _approveWithPricing() async {
     if (_order == null) return;
     final items = _order!.items;
@@ -91,10 +91,23 @@ class _PurchaseOrderDetailScreenState
       return;
     }
 
+    final isEmergency = _order!.isEmergencyPurchase;
+
+    // โหลด users สำหรับเลือก PO assignee (เฉพาะ normal flow)
+    List<Map<String, dynamic>> allUsers = [];
+    if (!isEmergency) {
+      try {
+        allUsers = await _service.getUsers();
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+
     final qtyControllers =
         items.map((_) => TextEditingController(text: '1')).toList();
     final priceControllers =
         items.map((_) => TextEditingController()).toList();
+    String? selectedAssigneeId;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -108,12 +121,62 @@ class _PurchaseOrderDetailScreenState
             total += qty * price;
           }
           return AlertDialog(
-            title: const Text('กรอกจำนวนและราคา'),
+            title: Text(isEmergency
+                ? 'อนุมัติ PR ฉุกเฉิน'
+                : 'อนุมัติ PR และมอบ PO'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Emergency banner
+                  if (isEmergency) ...[
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.warning_amber,
+                                  color: Colors.red.shade700, size: 16),
+                              const SizedBox(width: 6),
+                              Text(
+                                'กรณีฉุกเฉิน — ซื้อของแล้ว',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red.shade700,
+                                    fontSize: 13),
+                              ),
+                            ],
+                          ),
+                          if (_order!.emergencyReason != null &&
+                              _order!.emergencyReason!.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'เหตุผล: ${_order!.emergencyReason}',
+                              style: TextStyle(
+                                  color: Colors.red.shade700, fontSize: 12),
+                            ),
+                          ],
+                          const SizedBox(height: 4),
+                          Text(
+                            'เมื่ออนุมัติจะข้ามไปยัง "เสร็จสิ้น" ทันที',
+                            style: TextStyle(
+                                color: Colors.red.shade600, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Pricing rows
                   ...items.asMap().entries.map((entry) {
                     final i = entry.key;
                     final item = entry.value;
@@ -136,7 +199,8 @@ class _PurchaseOrderDetailScreenState
                                     labelText: 'จำนวน',
                                     isDense: true,
                                   ),
-                                  onChanged: (_) => setDialogState(() {}),
+                                  onChanged: (_) =>
+                                      setDialogState(() {}),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -151,7 +215,8 @@ class _PurchaseOrderDetailScreenState
                                     labelText: 'ราคา/หน่วย (฿)',
                                     isDense: true,
                                   ),
-                                  onChanged: (_) => setDialogState(() {}),
+                                  onChanged: (_) =>
+                                      setDialogState(() {}),
                                 ),
                               ),
                             ],
@@ -168,6 +233,37 @@ class _PurchaseOrderDetailScreenState
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
+
+                  // Assignee dropdown (normal flow only)
+                  if (!isEmergency && allUsers.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    const Text(
+                      'มอบหมาย PO ให้',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: selectedAssigneeId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'เลือกผู้รับผิดชอบ',
+                        isDense: true,
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                            value: null, child: Text('— ไม่ระบุ —')),
+                        ...allUsers.map((u) => DropdownMenuItem(
+                              value: u['id'] as String,
+                              child: Text(
+                                '${u['full_name']} (${u['role']})',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )),
+                      ],
+                      onChanged: (v) =>
+                          setDialogState(() => selectedAssigneeId = v),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -178,9 +274,12 @@ class _PurchaseOrderDetailScreenState
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                style:
-                    FilledButton.styleFrom(backgroundColor: Colors.green),
-                child: const Text('อนุมัติ'),
+                style: FilledButton.styleFrom(
+                    backgroundColor:
+                        isEmergency ? Colors.red.shade700 : Colors.green),
+                child: Text(isEmergency
+                    ? 'อนุมัติ (จบงาน)'
+                    : 'อนุมัติ & มอบ PO'),
               ),
             ],
           );
@@ -188,7 +287,6 @@ class _PurchaseOrderDetailScreenState
       ),
     );
 
-    // capture values before disposing
     final capturedQty =
         qtyControllers.map((c) => int.tryParse(c.text) ?? 1).toList();
     final capturedPrice =
@@ -215,10 +313,14 @@ class _PurchaseOrderDetailScreenState
         });
       }
 
+      // Emergency → received, Normal → approved
+      final newStatus = isEmergency ? 'received' : 'approved';
+
       await _service.updatePurchaseOrder(widget.orderId, {
-        'status': 'approved',
+        'status': newStatus,
         'items': updatedItems,
         'total_price': totalPrice,
+        if (!isEmergency) 'po_assigned_to': selectedAssigneeId,
         'updated_at': now.toIso8601String(),
       });
 
@@ -240,8 +342,11 @@ class _PurchaseOrderDetailScreenState
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('อนุมัติแล้ว และบันทึกค่าใช้จ่ายเรียบร้อย')),
+          SnackBar(
+            content: Text(isEmergency
+                ? 'อนุมัติ PR ฉุกเฉิน — บันทึกเสร็จสิ้นแล้ว'
+                : 'อนุมัติและมอบ PO เรียบร้อย'),
+          ),
         );
       }
     } catch (e) {
@@ -257,8 +362,9 @@ class _PurchaseOrderDetailScreenState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('ลบคำสั่งซื้อ'),
-        content: Text('ต้องการลบ "${_order!.title}" ใช่หรือไม่?\nไม่สามารถกู้คืนได้'),
+        title: const Text('ลบ PR/PO'),
+        content: Text(
+            'ต้องการลบ "${_order!.title}" ใช่หรือไม่?\nไม่สามารถกู้คืนได้'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -279,7 +385,7 @@ class _PurchaseOrderDetailScreenState
       await _service.deletePurchaseOrder(widget.orderId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ลบคำสั่งซื้อเรียบร้อยแล้ว')),
+          const SnackBar(content: Text('ลบเรียบร้อยแล้ว')),
         );
         context.go('/purchase-orders');
       }
@@ -292,10 +398,10 @@ class _PurchaseOrderDetailScreenState
     }
   }
 
+  /// อัปโหลดใบเสร็จ → received (ราคาถูกกรอกตอน CEO approve แล้ว)
   Future<void> _uploadReceiptAndReceive() async {
     final picker = ImagePicker();
 
-    // เลือกแหล่งรูป
     final source = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -320,7 +426,8 @@ class _PurchaseOrderDetailScreenState
 
     List<XFile> pickedFiles = [];
     if (source == 'camera') {
-      final xFile = await picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+      final xFile =
+          await picker.pickImage(source: ImageSource.camera, imageQuality: 80);
       if (xFile != null) pickedFiles = [xFile];
     } else {
       pickedFiles = await picker.pickMultiImage(imageQuality: 80);
@@ -334,12 +441,12 @@ class _PurchaseOrderDetailScreenState
       for (final xFile in pickedFiles) {
         final bytes = await xFile.readAsBytes();
         final ext = xFile.path.split('.').last.toLowerCase();
-        final fileName = 'po_${widget.orderId}_${now.millisecondsSinceEpoch}_${urls.length}.$ext';
+        final fileName =
+            'po_${widget.orderId}_${now.millisecondsSinceEpoch}_${urls.length}.$ext';
         final url = await _service.uploadFile('po-receipts', fileName, bytes);
         urls.add(url);
       }
 
-      // เก็บ URL ทั้งหมด (รวมกับรูปเดิมถ้ามี)
       final existingUrls = _order?.receiptImageUrls ?? [];
       final allUrls = [...existingUrls, ...urls];
 
@@ -364,7 +471,7 @@ class _PurchaseOrderDetailScreenState
     if (mounted) setState(() => _actionLoading = false);
   }
 
-  /// Self-purchase: caretaker รับของ + ถ่ายรูป + กรอกราคา → expense
+  /// [Backward compat] Self-purchase: กรอกราคา + ถ่ายรูป → received
   Future<void> _selfReceiveWithPricing() async {
     if (_order == null) return;
     final items = _order!.items;
@@ -375,7 +482,6 @@ class _PurchaseOrderDetailScreenState
       return;
     }
 
-    // Step 1: pick images (multiple supported)
     final picker = ImagePicker();
     final source = await showModalBottomSheet<String>(
       context: context,
@@ -401,14 +507,14 @@ class _PurchaseOrderDetailScreenState
 
     List<XFile> pickedFiles = [];
     if (source == 'camera') {
-      final xFile = await picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+      final xFile =
+          await picker.pickImage(source: ImageSource.camera, imageQuality: 80);
       if (xFile != null) pickedFiles = [xFile];
     } else {
       pickedFiles = await picker.pickMultiImage(imageQuality: 80);
     }
     if (pickedFiles.isEmpty || !mounted) return;
 
-    // Step 2: pricing dialog
     final qtyControllers =
         items.map((_) => TextEditingController(text: '1')).toList();
     final priceControllers =
@@ -452,7 +558,8 @@ class _PurchaseOrderDetailScreenState
                                   keyboardType: TextInputType.number,
                                   decoration: const InputDecoration(
                                       labelText: 'จำนวน', isDense: true),
-                                  onChanged: (_) => setDialogState(() {}),
+                                  onChanged: (_) =>
+                                      setDialogState(() {}),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -466,7 +573,8 @@ class _PurchaseOrderDetailScreenState
                                   decoration: const InputDecoration(
                                       labelText: 'ราคา/หน่วย (฿)',
                                       isDense: true),
-                                  onChanged: (_) => setDialogState(() {}),
+                                  onChanged: (_) =>
+                                      setDialogState(() {}),
                                 ),
                               ),
                             ],
@@ -515,8 +623,6 @@ class _PurchaseOrderDetailScreenState
     setState(() => _actionLoading = true);
     try {
       final now = DateTime.now();
-
-      // Upload all images
       final urls = <String>[];
       for (final xFile in pickedFiles) {
         final bytes = await xFile.readAsBytes();
@@ -527,7 +633,6 @@ class _PurchaseOrderDetailScreenState
         urls.add(url);
       }
 
-      // รวมกับรูปเดิม (ถ้ามี)
       final existingUrls = _order?.receiptImageUrls ?? [];
       final allUrls = [...existingUrls, ...urls];
 
@@ -571,9 +676,7 @@ class _PurchaseOrderDetailScreenState
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text(
-                  'บันทึกการรับของและค่าใช้จ่ายเรียบร้อยแล้ว')),
+          const SnackBar(content: Text('บันทึกการรับของเรียบร้อยแล้ว')),
         );
       }
     } catch (e) {
@@ -594,7 +697,7 @@ class _PurchaseOrderDetailScreenState
           appBar: AppBar(
             backgroundColor: Colors.black,
             foregroundColor: Colors.white,
-            title: const Text('\u0e23\u0e39\u0e1b\u0e43\u0e1a\u0e40\u0e2a\u0e23\u0e47\u0e08'),
+            title: const Text('รูปใบเสร็จ'),
           ),
           body: Center(
             child: InteractiveViewer(
@@ -612,18 +715,22 @@ class _PurchaseOrderDetailScreenState
     final role = _authState.currentRole;
     final currentUserId = Supabase.instance.client.auth.currentUser?.id;
     final isCeo = role == UserRole.owner || role == UserRole.admin;
-    final isCreator = _order?.createdBy == currentUserId;
-
     final isAdmin = role == UserRole.admin;
+
+    // ผู้ที่รับผิดชอบ PO นี้ (จาก po_assigned_to หรือ creator สำหรับ self-purchase)
+    final isAssignedUser = currentUserId != null &&
+        (_order?.poAssignedTo == currentUserId ||
+            (_order?.isSelfPurchase == true &&
+                _order?.createdBy == currentUserId));
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('รายละเอียดคำสั่งซื้อ'),
+        title: const Text('รายละเอียด PR/PO'),
         actions: [
           if (isAdmin && _order != null)
             IconButton(
               icon: const Icon(Icons.delete_outline, color: Colors.red),
-              tooltip: 'ลบคำสั่งซื้อ',
+              tooltip: 'ลบ',
               onPressed: _actionLoading ? null : _deletePo,
             ),
         ],
@@ -637,7 +744,7 @@ class _PurchaseOrderDetailScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header card
+                      // ─── Header Card ────────────────────────────
                       Card(
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -645,7 +752,8 @@ class _PurchaseOrderDetailScreenState
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
                                 children: [
                                   Expanded(
                                     child: Text(
@@ -657,13 +765,49 @@ class _PurchaseOrderDetailScreenState
                                   ),
                                   const SizedBox(width: 8),
                                   _StatusChip(_order!.status),
-                                  if (_order!.isSelfPurchase) ...[                                    const SizedBox(width: 6),
+                                  // Emergency badge
+                                  if (_order!.isEmergencyPurchase) ...[
+                                    const SizedBox(width: 6),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 3),
+                                      padding:
+                                          const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 3),
                                       decoration: BoxDecoration(
-                                        color: Colors.green.withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(12),
+                                        color: Colors.red.shade50,
+                                        borderRadius:
+                                            BorderRadius.circular(12),
+                                        border: Border.all(
+                                            color: Colors.red.shade200),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.warning_amber,
+                                              size: 12,
+                                              color: Colors.red.shade700),
+                                          const SizedBox(width: 4),
+                                          Text('ฉุกเฉิน',
+                                              style: TextStyle(
+                                                  color:
+                                                      Colors.red.shade700,
+                                                  fontSize: 11)),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                  // Legacy self-purchase badge
+                                  if (_order!.isSelfPurchase &&
+                                      !_order!.isEmergencyPurchase) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding:
+                                          const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green
+                                            .withValues(alpha: 0.12),
+                                        borderRadius:
+                                            BorderRadius.circular(12),
                                         border: Border.all(
                                             color: Colors.green
                                                 .withValues(alpha: 0.35)),
@@ -676,6 +820,42 @@ class _PurchaseOrderDetailScreenState
                                   ],
                                 ],
                               ),
+
+                              // Emergency reason
+                              if (_order!.isEmergencyPurchase &&
+                                  _order!.emergencyReason != null &&
+                                  _order!.emergencyReason!.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.shade50,
+                                    borderRadius:
+                                        BorderRadius.circular(8),
+                                    border: Border.all(
+                                        color: Colors.red.shade100),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(Icons.info_outline,
+                                          size: 14,
+                                          color: Colors.red.shade700),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          'เหตุผลฉุกเฉิน: ${_order!.emergencyReason}',
+                                          style: TextStyle(
+                                              color: Colors.red.shade700,
+                                              fontSize: 12),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+
                               if (_propertyName.isNotEmpty) ...[
                                 const SizedBox(height: 8),
                                 Row(
@@ -686,11 +866,34 @@ class _PurchaseOrderDetailScreenState
                                     Text(_propertyName,
                                         style: theme.textTheme.bodyMedium
                                             ?.copyWith(
-                                                color: theme
-                                                    .colorScheme.outline)),
+                                                color: theme.colorScheme
+                                                    .outline)),
                                   ],
                                 ),
                               ],
+
+                              // Assigned user
+                              if (_order!.poAssignedToName != null &&
+                                  _order!.poAssignedToName!.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    const Icon(
+                                        Icons.assignment_ind_outlined,
+                                        size: 14,
+                                        color: Colors.blue),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'ผู้รับ PO: ${_order!.poAssignedToName}',
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                              color:
+                                                  Colors.blue.shade700),
+                                    ),
+                                  ],
+                                ),
+                              ],
+
                               if (_order!.description != null &&
                                   _order!.description!.isNotEmpty) ...[
                                 const SizedBox(height: 8),
@@ -698,6 +901,21 @@ class _PurchaseOrderDetailScreenState
                                     style: theme.textTheme.bodyMedium),
                               ],
                               const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(Icons.person_outline,
+                                      size: 13, color: Colors.grey),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'เปิด PR โดย: ${_order!.createdByName ?? 'ไม่ทราบ'}',
+                                    style: theme.textTheme.bodySmall
+                                        ?.copyWith(
+                                            color:
+                                                theme.colorScheme.outline),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
                               Text(
                                 'สร้างเมื่อ ${formatThaiDate(_order!.createdAt)}',
                                 style: theme.textTheme.bodySmall?.copyWith(
@@ -709,7 +927,7 @@ class _PurchaseOrderDetailScreenState
                       ),
                       const SizedBox(height: 16),
 
-                      // Items table
+                      // ─── Items Table ─────────────────────────────
                       if (_order!.items.isNotEmpty) ...[
                         Text('รายการอุปกรณ์',
                             style: theme.textTheme.titleMedium
@@ -720,9 +938,9 @@ class _PurchaseOrderDetailScreenState
                             padding: const EdgeInsets.all(12),
                             child: (_order!.status == POStatus.pending ||
                                     (_order!.isSelfPurchase &&
-                                        _order!.status == POStatus.ordered &&
+                                        _order!.status ==
+                                            POStatus.ordered &&
                                         _order!.totalPrice == 0))
-                                // pending / self-purchase ยังไม่มีราคา → ชื่ออุปกรณ์อย่างเดียว
                                 ? Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
@@ -733,18 +951,18 @@ class _PurchaseOrderDetailScreenState
                                             : 'รอ CEO กรอกราคาและจำนวนตอนอนุมัติ',
                                         style: theme.textTheme.bodySmall
                                             ?.copyWith(
-                                                color: theme
-                                                    .colorScheme.outline),
+                                                color: theme.colorScheme
+                                                    .outline),
                                       ),
                                       const SizedBox(height: 8),
                                       ..._order!.items.map(
                                         (item) => Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 4),
+                                          padding:
+                                              const EdgeInsets.symmetric(
+                                                  vertical: 4),
                                           child: Row(
                                             children: [
-                                              const Icon(
-                                                  Icons.circle,
+                                              const Icon(Icons.circle,
                                                   size: 6,
                                                   color: Colors.grey),
                                               const SizedBox(width: 8),
@@ -755,7 +973,6 @@ class _PurchaseOrderDetailScreenState
                                       ),
                                     ],
                                   )
-                                // อนุมัติแล้ว → แสดงตารางเต็ม
                                 : Column(
                                     children: [
                                       Row(
@@ -763,8 +980,8 @@ class _PurchaseOrderDetailScreenState
                                           Expanded(
                                               flex: 4,
                                               child: Text('ชื่อ',
-                                                  style: theme
-                                                      .textTheme.labelMedium
+                                                  style: theme.textTheme
+                                                      .labelMedium
                                                       ?.copyWith(
                                                           fontWeight:
                                                               FontWeight
@@ -772,9 +989,10 @@ class _PurchaseOrderDetailScreenState
                                           Expanded(
                                               flex: 2,
                                               child: Text('จำนวน',
-                                                  textAlign: TextAlign.center,
-                                                  style: theme
-                                                      .textTheme.labelMedium
+                                                  textAlign:
+                                                      TextAlign.center,
+                                                  style: theme.textTheme
+                                                      .labelMedium
                                                       ?.copyWith(
                                                           fontWeight:
                                                               FontWeight
@@ -782,9 +1000,10 @@ class _PurchaseOrderDetailScreenState
                                           Expanded(
                                               flex: 3,
                                               child: Text('ราคา/หน่วย',
-                                                  textAlign: TextAlign.right,
-                                                  style: theme
-                                                      .textTheme.labelMedium
+                                                  textAlign:
+                                                      TextAlign.right,
+                                                  style: theme.textTheme
+                                                      .labelMedium
                                                       ?.copyWith(
                                                           fontWeight:
                                                               FontWeight
@@ -792,9 +1011,10 @@ class _PurchaseOrderDetailScreenState
                                           Expanded(
                                               flex: 3,
                                               child: Text('รวม',
-                                                  textAlign: TextAlign.right,
-                                                  style: theme
-                                                      .textTheme.labelMedium
+                                                  textAlign:
+                                                      TextAlign.right,
+                                                  style: theme.textTheme
+                                                      .labelMedium
                                                       ?.copyWith(
                                                           fontWeight:
                                                               FontWeight
@@ -804,55 +1024,63 @@ class _PurchaseOrderDetailScreenState
                                       const Divider(),
                                       ..._order!.items.map(
                                         (item) => Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 4),
+                                          padding:
+                                              const EdgeInsets.symmetric(
+                                                  vertical: 4),
                                           child: Row(
                                             children: [
                                               Expanded(
                                                   flex: 4,
-                                                  child: Text(item.name)),
+                                                  child:
+                                                      Text(item.name)),
                                               Expanded(
                                                   flex: 2,
-                                                  child: Text('${item.qty}',
-                                                      textAlign:
-                                                          TextAlign.center)),
+                                                  child: Text(
+                                                      '${item.qty}',
+                                                      textAlign: TextAlign
+                                                          .center)),
                                               Expanded(
                                                   flex: 3,
                                                   child: Text(
                                                       '฿${item.unitPrice.toStringAsFixed(2)}',
-                                                      textAlign:
-                                                          TextAlign.right)),
+                                                      textAlign: TextAlign
+                                                          .right)),
                                               Expanded(
                                                   flex: 3,
                                                   child: Text(
                                                       '฿${item.total.toStringAsFixed(2)}',
-                                                      textAlign:
-                                                          TextAlign.right)),
+                                                      textAlign: TextAlign
+                                                          .right)),
                                             ],
                                           ),
                                         ),
                                       ),
-                                const Divider(),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      'รวม: ฿${_order!.totalPrice.toStringAsFixed(2)}',
-                                      style: theme.textTheme.titleSmall
-                                          ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: theme.colorScheme.primary),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
+                                      const Divider(),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            'รวม: ฿${_order!.totalPrice.toStringAsFixed(2)}',
+                                            style: theme
+                                                .textTheme.titleSmall
+                                                ?.copyWith(
+                                                    fontWeight:
+                                                        FontWeight.bold,
+                                                    color: theme
+                                                        .colorScheme
+                                                        .primary),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                           ),
                         ),
                         const SizedBox(height: 16),
                       ],
 
-                      // Notes
+                      // ─── Notes ───────────────────────────────────
                       if (_order!.notes != null &&
                           _order!.notes!.isNotEmpty) ...[
                         Text('หมายเหตุ',
@@ -868,8 +1096,8 @@ class _PurchaseOrderDetailScreenState
                         const SizedBox(height: 16),
                       ],
 
-                      // Receipt photos
-                      if ((_order!.receiptImageUrls.isNotEmpty) ||
+                      // ─── Receipt Photos ───────────────────────────
+                      if (_order!.receiptImageUrls.isNotEmpty ||
                           _order!.receiptImageUrl != null) ...[
                         Text('รูปใบเสร็จ',
                             style: theme.textTheme.titleMedium
@@ -880,57 +1108,65 @@ class _PurchaseOrderDetailScreenState
                           child: ListView(
                             scrollDirection: Axis.horizontal,
                             children: [
-                              // แสดงจาก receiptImageUrls ก่อน (รองรับหลายรูป)
-                              // ถ้าไม่มีให้ fallback ไปที่ receiptImageUrl เดิม
                               ...(_order!.receiptImageUrls.isNotEmpty
-                                  ? _order!.receiptImageUrls
-                                  : [if (_order!.receiptImageUrl != null) _order!.receiptImageUrl!]
-                              ).map((url) => Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: GestureDetector(
-                                  onTap: () => _showFullImage(context, url),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.network(
-                                      url,
-                                      width: 150,
-                                      height: 150,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) =>
-                                          const SizedBox(
-                                        width: 150,
-                                        height: 150,
-                                        child: Center(
-                                            child: Icon(Icons.broken_image)),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              )),
+                                      ? _order!.receiptImageUrls
+                                      : [
+                                          if (_order!.receiptImageUrl !=
+                                              null)
+                                            _order!.receiptImageUrl!
+                                        ])
+                                  .map((url) => Padding(
+                                        padding:
+                                            const EdgeInsets.only(right: 8),
+                                        child: GestureDetector(
+                                          onTap: () =>
+                                              _showFullImage(context, url),
+                                          child: ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                            child: Image.network(
+                                              url,
+                                              width: 150,
+                                              height: 150,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) =>
+                                                  const SizedBox(
+                                                width: 150,
+                                                height: 150,
+                                                child: Center(
+                                                    child: Icon(
+                                                        Icons.broken_image)),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      )),
                             ],
                           ),
                         ),
                         const SizedBox(height: 16),
                       ],
 
-                      // ─── Action Buttons ────────────────────────────
+                      // ─── Action Buttons ───────────────────────────
                       if (_actionLoading)
                         const Center(child: CircularProgressIndicator())
                       else ...[
-                        // CEO: approve pending PO
-                        // CEO flow only: approve pending PO
-                        if (!_order!.isSelfPurchase &&
-                            isCeo &&
-                            _order!.status == POStatus.pending) ...[
+                        // [1] CEO: อนุมัติ / ปฏิเสธ PR
+                        if (isCeo && _order!.status == POStatus.pending) ...[
                           Row(
                             children: [
                               Expanded(
                                 child: FilledButton.icon(
                                   onPressed: _approveWithPricing,
                                   icon: const Icon(Icons.check),
-                                  label: const Text('อนุมัติ'),  
+                                  label: Text(_order!.isEmergencyPurchase
+                                      ? 'อนุมัติ (ฉุกเฉิน)'
+                                      : 'อนุมัติ & มอบ PO'),
                                   style: FilledButton.styleFrom(
-                                      backgroundColor: Colors.green),
+                                      backgroundColor:
+                                          _order!.isEmergencyPurchase
+                                              ? Colors.red.shade700
+                                              : Colors.green),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -947,25 +1183,26 @@ class _PurchaseOrderDetailScreenState
                             ],
                           ),
                         ],
-                        // CEO flow only: mark as ordered
-                        if (!_order!.isSelfPurchase &&
-                            isCeo &&
-                            _order!.status == POStatus.approved) ...[
+
+                        // [2] ผู้รับ PO หรือ CEO: ยืนยันดำเนินการ (approved → ordered)
+                        if (_order!.status == POStatus.approved &&
+                            !_order!.isSelfPurchase &&
+                            (isCeo || isAssignedUser)) ...[
+                          const SizedBox(height: 8),
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton.icon(
                               onPressed: () => _updateStatus('ordered'),
-                              icon:
-                                  const Icon(Icons.local_shipping_outlined),
-                              label: const Text('ดำเนินการสั่งซื้อแล้ว'),
+                              icon: const Icon(Icons.local_shipping_outlined),
+                              label: const Text('ยืนยันดำเนินการ — ไปซื้อของแล้ว'),
                             ),
                           ),
                         ],
-                        // CEO flow: caretaker receive (price already set by CEO)
-                        if (!_order!.isSelfPurchase &&
-                            (isCreator || isCeo) &&
-                            (_order!.status == POStatus.approved ||
-                                _order!.status == POStatus.ordered)) ...[
+
+                        // [3] ผู้รับ PO หรือ CEO: รับของ + ถ่ายรูปใบเสร็จ (ordered → received)
+                        if (_order!.status == POStatus.ordered &&
+                            !_order!.isSelfPurchase &&
+                            (isCeo || isAssignedUser)) ...[
                           const SizedBox(height: 8),
                           SizedBox(
                             width: double.infinity,
@@ -976,16 +1213,21 @@ class _PurchaseOrderDetailScreenState
                             ),
                           ),
                         ],
-                        // Self-purchase flow: receive + enter price
+
+                        // [4] [Backward compat] Self-purchase (ordered)
                         if (_order!.isSelfPurchase &&
-                            _order!.status == POStatus.ordered) ...[  
+                            _order!.status == POStatus.ordered) ...[
+                          const SizedBox(height: 8),
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton.icon(
-                              onPressed: _selfReceiveWithPricing,
+                              onPressed: _order!.totalPrice == 0
+                                  ? _selfReceiveWithPricing
+                                  : _uploadReceiptAndReceive,
                               icon: const Icon(Icons.shopping_bag),
-                              label: const Text(
-                                  'รับของ → ถ่ายรูป + กรอกราคา'),
+                              label: Text(_order!.totalPrice == 0
+                                  ? 'รับของ → ถ่ายรูป + กรอกราคา'
+                                  : 'รับของและถ่ายรูปใบเสร็จ'),
                               style: FilledButton.styleFrom(
                                   backgroundColor: Colors.green.shade700),
                             ),
@@ -1013,8 +1255,8 @@ class _StatusChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
-      child:
-          Text(status.displayName, style: TextStyle(color: color, fontSize: 12)),
+      child: Text(status.displayName,
+          style: TextStyle(color: color, fontSize: 12)),
     );
   }
 
