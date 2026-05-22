@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/purchase_order.dart';
 import '../../services/supabase_service.dart';
@@ -26,6 +27,8 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
   List<Map<String, dynamic>> _properties = [];
 
   bool _isEmergency = false;
+  final List<XFile> _pickedImages = [];
+  final _picker = ImagePicker();
 
   final List<_ItemRow> _itemRows = [];
 
@@ -71,6 +74,16 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
     });
   }
 
+  Future<void> _pickImages(ImageSource source) async {
+    if (source == ImageSource.camera) {
+      final xFile = await _picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+      if (xFile != null) setState(() => _pickedImages.add(xFile));
+    } else {
+      final xFiles = await _picker.pickMultiImage(imageQuality: 80);
+      if (xFiles.isNotEmpty) setState(() => _pickedImages.addAll(xFiles));
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -82,6 +95,17 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
 
     setState(() => _loading = true);
     try {
+      // อัปโหลดรูปประกอบ PR
+      final prImageUrls = <String>[];
+      final now = DateTime.now();
+      for (int i = 0; i < _pickedImages.length; i++) {
+        final bytes = await _pickedImages[i].readAsBytes();
+        final ext = _pickedImages[i].path.split('.').last.toLowerCase();
+        final fileName = 'pr_${now.millisecondsSinceEpoch}_$i.$ext';
+        final url = await _service.uploadFile('po-receipts', fileName, bytes);
+        prImageUrls.add(url);
+      }
+
       await _service.createPurchaseOrder({
         'title': _titleCtrl.text.trim(),
         'description': _descCtrl.text.trim().isEmpty
@@ -96,6 +120,7 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
         'emergency_reason': _isEmergency && _emergencyReasonCtrl.text.trim().isNotEmpty
             ? _emergencyReasonCtrl.text.trim()
             : null,
+        'pr_image_urls': prImageUrls,
       });
       if (mounted) context.pop();
     } catch (e) {
@@ -203,6 +228,67 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                         hintText: 'หมายเหตุเพิ่มเติม (ถ้ามี)',
                       ),
                     ),
+                    const SizedBox(height: 20),
+
+                    // Image attachment section
+                    Row(
+                      children: [
+                        Text('รูปประกอบ PR (ถ้ามี)',
+                            style: theme.textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.bold)),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () => _pickImages(ImageSource.camera),
+                          icon: const Icon(Icons.camera_alt_outlined, size: 20),
+                          tooltip: 'ถ่ายรูป',
+                        ),
+                        IconButton(
+                          onPressed: () => _pickImages(ImageSource.gallery),
+                          icon: const Icon(Icons.photo_library_outlined, size: 20),
+                          tooltip: 'แกลเลอรี่ (หลายรูป)',
+                        ),
+                      ],
+                    ),
+                    if (_pickedImages.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.photo_library,
+                                color: Colors.blue.shade700, size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${_pickedImages.length} รูป',
+                              style: TextStyle(
+                                  color: Colors.blue.shade700,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                            const Spacer(),
+                            GestureDetector(
+                              onTap: () => setState(() => _pickedImages.clear()),
+                              child: Text('ล้างทั้งหมด',
+                                  style: TextStyle(
+                                      color: Colors.red.shade600,
+                                      fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'แนบรูปอ้างอิง เช่น รูปของที่ชำรุด หรืออุปกรณ์ที่ต้องการ',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.colorScheme.outline),
+                      ),
+                    ],
                     const SizedBox(height: 20),
 
                     // Emergency section

@@ -1049,6 +1049,48 @@ class _PurchaseOrderDetailScreenState
                         const SizedBox(height: 16),
                       ],
 
+                      // ─── PR Images ───────────────────────────
+                      if (_order!.prImageUrls.isNotEmpty) ...[
+                        Text('รูปประกอบ PR',
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height: 150,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: _order!.prImageUrls
+                                .map((url) => Padding(
+                                      padding:
+                                          const EdgeInsets.only(right: 8),
+                                      child: GestureDetector(
+                                        onTap: () =>
+                                            _showFullImage(context, url),
+                                        child: ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          child: Image.network(
+                                            url,
+                                            width: 150,
+                                            height: 150,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) =>
+                                                const SizedBox(
+                                                    width: 150,
+                                                    height: 150,
+                                                    child: Center(
+                                                        child: Icon(Icons
+                                                            .broken_image))),
+                                          ),
+                                        ),
+                                      ),
+                                    ))
+                                .toList(),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
                       // ─── Notes ────────────────────────────────
                       if (_order!.notes != null &&
                           _order!.notes!.isNotEmpty) ...[

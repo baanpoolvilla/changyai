@@ -89,6 +89,7 @@ class PurchaseOrder {
   final bool isSelfPurchase;
   final bool isEmergencyPurchase;
   final String? emergencyReason;
+  final List<String> prImageUrls;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -110,6 +111,7 @@ class PurchaseOrder {
     this.isSelfPurchase = false,
     this.isEmergencyPurchase = false,
     this.emergencyReason,
+    this.prImageUrls = const [],
     required this.createdAt,
     required this.updatedAt,
   });
@@ -147,6 +149,10 @@ class PurchaseOrder {
       isSelfPurchase: json['is_self_purchase'] as bool? ?? false,
       isEmergencyPurchase: json['is_emergency_purchase'] as bool? ?? false,
       emergencyReason: json['emergency_reason'] as String?,
+      prImageUrls: (json['pr_image_urls'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
     );
@@ -167,5 +173,6 @@ class PurchaseOrder {
     'is_self_purchase': isSelfPurchase,
     'is_emergency_purchase': isEmergencyPurchase,
     'emergency_reason': emergencyReason,
+    'pr_image_urls': prImageUrls,
   };
 }
