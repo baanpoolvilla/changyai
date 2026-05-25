@@ -80,11 +80,18 @@ enum UserRole {
   bool get canAssignCaretaker =>
       this == admin || this == owner || this == manager;
 
+  /// Returns true if this role can create or edit properties.
+  bool get canManageProperties =>
+      this == admin || this == owner || this == manager;
+
+  /// Returns true if this role can add or edit assets.
+  bool get canManageAssets => canManageProperties || this == caretaker;
+
   /// Returns true if this role can assign technicians
   bool get canAssignTechnician =>
       this == admin || this == owner || this == manager || this == caretaker;
 
-    /// Returns true if this role can add expense entries
+  /// Returns true if this role can add expense entries
   bool get canManageExpenses =>
       this == admin || this == owner || this == manager;
 }

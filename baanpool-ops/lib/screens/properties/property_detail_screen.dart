@@ -5,6 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/property.dart';
 import '../../models/asset.dart';
+import '../../models/user.dart';
+import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 
 class PropertyDetailScreen extends StatefulWidget {
@@ -17,6 +19,7 @@ class PropertyDetailScreen extends StatefulWidget {
 }
 
 class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
+  final _authState = AuthStateService();
   final _service = SupabaseService(Supabase.instance.client);
   Property? _property;
   List<Asset> _assets = [];
@@ -55,6 +58,19 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
       }
     }
     if (mounted) setState(() => _loading = false);
+  }
+
+  bool _canAddAssetsForProperty() {
+    final property = _property;
+    if (property == null) return false;
+
+    final role = _authState.currentRole;
+    if (role.canManageProperties) return true;
+
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    return role == UserRole.caretaker &&
+        property.caretakerId != null &&
+        property.caretakerId == currentUserId;
   }
 
   Future<void> _deleteProperty() async {
@@ -97,6 +113,17 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
   }
 
   Future<void> _showAddAssetDialog() async {
+    if (!_canAddAssetsForProperty()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ไม่มีสิทธิ์เพิ่มอุปกรณ์ในบ้านนี้'),
+          ),
+        );
+      }
+      return;
+    }
+
     final nameCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
     Uint8List? imageBytes;
@@ -256,6 +283,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
     }
 
     final p = _property!;
+    final canAddAssets = _canAddAssetsForProperty();
 
     return Scaffold(
       appBar: AppBar(
@@ -308,11 +336,12 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                   'อุปกรณ์ (${_assets.length})',
                   style: theme.textTheme.titleMedium,
                 ),
-                FilledButton.tonalIcon(
-                  onPressed: _showAddAssetDialog,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('เพิ่มอุปกรณ์'),
-                ),
+                if (canAddAssets)
+                  FilledButton.tonalIcon(
+                    onPressed: _showAddAssetDialog,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('เพิ่มอุปกรณ์'),
+                  ),
               ],
             ),
             const SizedBox(height: 8),
@@ -373,10 +402,12 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddAssetDialog,
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: canAddAssets
+          ? FloatingActionButton(
+              onPressed: _showAddAssetDialog,
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 
