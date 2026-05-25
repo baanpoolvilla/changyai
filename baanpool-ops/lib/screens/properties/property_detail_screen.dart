@@ -257,9 +257,12 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
       _load();
     } catch (e) {
       if (mounted) {
+        final message = e is PostgrestException && e.code == '42501'
+            ? 'เพิ่มอุปกรณ์ไม่สำเร็จ: ฐานข้อมูลยังไม่เปิดสิทธิ์ผู้ดูแลบ้านสำหรับบ้านนี้ กรุณารัน migration ล่าสุด'
+            : 'เพิ่มอุปกรณ์ล้มเหลว: $e';
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('เพิ่มอุปกรณ์ล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text(message)));
       }
     }
   }
