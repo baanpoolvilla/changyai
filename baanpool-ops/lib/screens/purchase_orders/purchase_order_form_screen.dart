@@ -84,18 +84,42 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
     }
   }
 
+  double get _emergencyTotal {
+    double total = 0;
+    for (final r in _itemRows) {
+      final qty = int.tryParse(r.qtyCtrl.text) ?? 0;
+      final price = double.tryParse(r.priceCtrl.text) ?? 0;
+      total += qty * price;
+    }
+    return total;
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final items = _itemRows
-        .map((r) => r.nameCtrl.text.trim())
-        .where((name) => name.isNotEmpty)
-        .map((name) => {'name': name, 'qty': 0, 'unit_price': 0.0})
-        .toList();
+    final List<Map<String, dynamic>> items;
+    final double totalPrice;
+
+    if (_isEmergency) {
+      items = _itemRows
+          .where((r) => r.nameCtrl.text.trim().isNotEmpty)
+          .map((r) => {
+                'name': r.nameCtrl.text.trim(),
+                'qty': int.tryParse(r.qtyCtrl.text) ?? 1,
+                'unit_price': double.tryParse(r.priceCtrl.text) ?? 0.0,
+              })
+          .toList();
+      totalPrice = _emergencyTotal;
+    } else {
+      items = _itemRows
+          .where((r) => r.nameCtrl.text.trim().isNotEmpty)
+          .map((r) => {'name': r.nameCtrl.text.trim(), 'qty': 0, 'unit_price': 0.0})
+          .toList();
+      totalPrice = 0;
+    }
 
     setState(() => _loading = true);
     try {
-      // อัปโหลดรูปประกอบ PR
       final prImageUrls = <String>[];
       final now = DateTime.now();
       for (int i = 0; i < _pickedImages.length; i++) {
@@ -108,12 +132,10 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
 
       await _service.createPurchaseOrder({
         'title': _titleCtrl.text.trim(),
-        'description': _descCtrl.text.trim().isEmpty
-            ? null
-            : _descCtrl.text.trim(),
+        'description': _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
         'property_id': _selectedPropertyId,
         'items': items,
-        'total_price': 0,
+        'total_price': totalPrice,
         'notes': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         'status': 'pending',
         'is_emergency_purchase': _isEmergency,
@@ -201,7 +223,9 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'ใส่ชื่ออุปกรณ์ — CEO จะใส่จำนวนและราคาตอนอนุมัติ',
+                      _isEmergency
+                          ? 'ใส่ชื่ออุปกรณ์ จำนวน และราคาที่จ่ายไปแล้ว'
+                          : 'ใส่ชื่ออุปกรณ์ — CEO จะใส่จำนวนและราคาตอนอนุมัติ',
                       style: theme.textTheme.bodySmall
                           ?.copyWith(color: theme.colorScheme.outline),
                     ),
@@ -213,11 +237,30 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                         key: ObjectKey(row),
                         row: row,
                         index: i,
+                        showPricing: _isEmergency,
                         onRemove: _itemRows.length > 1
                             ? () => _removeItemRow(i)
                             : null,
+                        onChanged: _isEmergency
+                            ? () => setState(() {})
+                            : null,
                       );
                     }),
+
+                    // Emergency total
+                    if (_isEmergency) ...[
+                      const Divider(),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          'รวม: ฿${_emergencyTotal.toStringAsFixed(2)}',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red.shade700),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
 
                     const SizedBox(height: 16),
                     TextFormField(
@@ -233,9 +276,11 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                     // Image attachment section
                     Row(
                       children: [
-                        Text('รูปประกอบ PR (ถ้ามี)',
-                            style: theme.textTheme.titleSmall
-                                ?.copyWith(fontWeight: FontWeight.bold)),
+                        Text(
+                          _isEmergency ? 'แนบใบเสร็จ / รูปสินค้า *' : 'รูปประกอบ PR (ถ้ามี)',
+                          style: theme.textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
                         const Spacer(),
                         IconButton(
                           onPressed: () => _pickImages(ImageSource.camera),
@@ -284,7 +329,9 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                     ] else ...[
                       const SizedBox(height: 4),
                       Text(
-                        'แนบรูปอ้างอิง เช่น รูปของที่ชำรุด หรืออุปกรณ์ที่ต้องการ',
+                        _isEmergency
+                            ? 'แนบรูปใบเสร็จ หรือรูปสินค้าที่ซื้อมาแล้ว'
+                            : 'แนบรูปอ้างอิง เช่น รูปของที่ชำรุด หรืออุปกรณ์ที่ต้องการ',
                         style: theme.textTheme.bodySmall
                             ?.copyWith(color: theme.colorScheme.outline),
                       ),
@@ -321,7 +368,7 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                               ),
                             ),
                             subtitle: Text(
-                              'เมื่อ CEO อนุมัติจะข้ามไปยัง "เสร็จสิ้น" ทันที',
+                              'ใส่ราคาได้เลย — CEO อนุมัติแล้วจบทันที',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: _isEmergency
@@ -377,7 +424,7 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                                 ? Icons.warning_amber
                                 : Icons.send_outlined),
                         label: Text(_isEmergency
-                            ? 'เปิด PR (ฉุกเฉิน)'
+                            ? 'เปิด PR (ฉุกเฉิน) — ส่งให้ CEO อนุมัติ'
                             : 'เปิด PR — ส่งให้ CEO อนุมัติ'),
                         style: _isEmergency
                             ? FilledButton.styleFrom(
@@ -396,9 +443,13 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
 // Item row model
 class _ItemRow {
   final TextEditingController nameCtrl = TextEditingController();
+  final TextEditingController qtyCtrl = TextEditingController(text: '1');
+  final TextEditingController priceCtrl = TextEditingController();
 
   void dispose() {
     nameCtrl.dispose();
+    qtyCtrl.dispose();
+    priceCtrl.dispose();
   }
 }
 
@@ -406,38 +457,92 @@ class _ItemRow {
 class _ItemRowWidget extends StatelessWidget {
   final _ItemRow row;
   final int index;
+  final bool showPricing;
   final VoidCallback? onRemove;
+  final VoidCallback? onChanged;
 
   const _ItemRowWidget({
     super.key,
     required this.row,
     required this.index,
+    required this.showPricing,
     required this.onRemove,
+    this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: TextFormField(
-              controller: row.nameCtrl,
-              decoration: InputDecoration(
-                labelText: 'ชื่ออุปกรณ์ ${index + 1}',
-                isDense: true,
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: row.nameCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'ชื่ออุปกรณ์ ${index + 1}',
+                    isDense: true,
+                  ),
+                  validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'กรอกชื่อ' : null,
+                ),
               ),
-              validator: (v) =>
-                  v == null || v.trim().isEmpty ? 'กรอกชื่อ' : null,
+              IconButton(
+                onPressed: onRemove,
+                icon: const Icon(Icons.remove_circle_outline, size: 20),
+                color: onRemove != null ? Colors.red : Colors.grey.shade300,
+                tooltip: 'ลบรายการ',
+              ),
+            ],
+          ),
+          if (showPricing) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const SizedBox(width: 4),
+                SizedBox(
+                  width: 80,
+                  child: TextFormField(
+                    controller: row.qtyCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'จำนวน',
+                      isDense: true,
+                    ),
+                    onChanged: (_) => onChanged?.call(),
+                    validator: (v) {
+                      if (showPricing && (int.tryParse(v ?? '') ?? 0) <= 0) {
+                        return 'กรอกจำนวน';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextFormField(
+                    controller: row.priceCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'ราคา/หน่วย (฿)',
+                      isDense: true,
+                    ),
+                    onChanged: (_) => onChanged?.call(),
+                    validator: (v) {
+                      if (showPricing && (double.tryParse(v ?? '') ?? -1) < 0) {
+                        return 'กรอกราคา';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 40),
+              ],
             ),
-          ),
-          IconButton(
-            onPressed: onRemove,
-            icon: const Icon(Icons.remove_circle_outline, size: 20),
-            color: onRemove != null ? Colors.red : Colors.grey.shade300,
-            tooltip: 'ลบรายการ',
-          ),
+          ],
         ],
       ),
     );

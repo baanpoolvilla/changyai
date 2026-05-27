@@ -217,129 +217,88 @@ class _PurchaseOrderDetailScreenState
     if (mounted) setState(() => _actionLoading = false);
   }
 
-  // ─── CEO อนุมัติฉุกเฉิน: ราคา + รูป → received ──────────
+  // ─── CEO อนุมัติฉุกเฉิน: ยืนยันอย่างเดียว → received ───────
   Future<void> _approveEmergency() async {
     if (_order == null) return;
-    final items = _order!.items;
-    if (items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ไม่มีรายการอุปกรณ์')));
-      return;
-    }
 
-    final picker = ImagePicker();
-    final qtyCtrl = items.map((_) => TextEditingController(text: '1')).toList();
-    final priceCtrl = items.map((_) => TextEditingController()).toList();
-    final pickedImages = <XFile>[];
+    final total = _order!.totalPrice;
+    final reason = _order!.emergencyReason;
 
     final confirmed = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlg) {
-          double total = 0;
-          for (int i = 0; i < items.length; i++) {
-            total += (int.tryParse(qtyCtrl[i].text) ?? 0) *
-                (double.tryParse(priceCtrl[i].text) ?? 0);
-          }
-          return AlertDialog(
-            title: const Text('อนุมัติ PR ฉุกเฉิน'),
-            content: SingleChildScrollView(
+      builder: (ctx) => AlertDialog(
+        title: const Text('อนุมัติ PR ฉุกเฉิน'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Emergency banner
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          Icon(Icons.warning_amber,
-                              color: Colors.red.shade700, size: 16),
-                          const SizedBox(width: 6),
-                          Text('กรณีฉุกเฉิน — ซื้อของแล้ว',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.red.shade700,
-                                  fontSize: 13)),
-                        ]),
-                        if (_order!.emergencyReason != null &&
-                            _order!.emergencyReason!.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text('เหตุผล: ${_order!.emergencyReason}',
-                              style: TextStyle(
-                                  color: Colors.red.shade700, fontSize: 12)),
-                        ],
-                        const SizedBox(height: 4),
-                        Text('เมื่ออนุมัติจะข้ามไปยัง "เสร็จสิ้น" ทันที',
-                            style: TextStyle(
-                                color: Colors.red.shade600, fontSize: 11)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Pricing
-                  ..._pricingRows(items, qtyCtrl, priceCtrl, setDlg),
-                  const Divider(),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Text('รวม: ฿${total.toStringAsFixed(2)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                  const SizedBox(height: 16),
-                  // Image picker
-                  _imagePickerRow(picker, pickedImages, setDlg),
+                  Row(children: [
+                    Icon(Icons.warning_amber,
+                        color: Colors.red.shade700, size: 16),
+                    const SizedBox(width: 6),
+                    Text('ซื้อของแล้ว — จ่ายตังไปแล้ว',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red.shade700,
+                            fontSize: 13)),
+                  ]),
+                  if (reason != null && reason.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text('เหตุผล: $reason',
+                        style: TextStyle(
+                            color: Colors.red.shade700, fontSize: 12)),
+                  ],
                 ],
               ),
             ),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('ยกเลิก')),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                style: FilledButton.styleFrom(
-                    backgroundColor: Colors.red.shade700),
-                child: const Text('อนุมัติ (จบงาน)'),
+            const SizedBox(height: 12),
+            if (total > 0)
+              Text(
+                'ยอดรวม: ฿${total.toStringAsFixed(2)}',
+                style: const TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.bold),
               ),
-            ],
-          );
-        },
+            const SizedBox(height: 8),
+            Text(
+              'เมื่ออนุมัติจะบันทึกสถานะเป็น "เสร็จสิ้น" ทันที',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('ยกเลิก')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+                backgroundColor: Colors.red.shade700),
+            child: const Text('อนุมัติ (จบงาน)'),
+          ),
+        ],
       ),
     );
-
-    final capturedQty =
-        qtyCtrl.map((c) => int.tryParse(c.text) ?? 1).toList();
-    final capturedPrice =
-        priceCtrl.map((c) => double.tryParse(c.text) ?? 0).toList();
-    final capturedImages = List<XFile>.from(pickedImages);
-    for (final c in [...qtyCtrl, ...priceCtrl]) c.dispose();
 
     if (confirmed != true || !mounted) return;
 
     setState(() => _actionLoading = true);
     try {
       final now = DateTime.now();
-      final urls = await _uploadImages(capturedImages, now);
-      final totalPrice = _calcTotal(capturedQty, capturedPrice);
-      final updatedItems = _buildItems(items, capturedQty, capturedPrice);
-
       await _service.updatePurchaseOrder(widget.orderId, {
         'status': 'received',
-        if (urls.isNotEmpty) 'receipt_image_url': urls.first,
-        'receipt_image_urls': urls,
-        'items': updatedItems,
-        'total_price': totalPrice,
         'updated_at': now.toIso8601String(),
       });
-      if (totalPrice > 0) await _createExpense(totalPrice, now, suffix: '(ฉุกเฉิน)');
+      if (total > 0) await _createExpense(total, now, suffix: '(ฉุกเฉิน)');
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
