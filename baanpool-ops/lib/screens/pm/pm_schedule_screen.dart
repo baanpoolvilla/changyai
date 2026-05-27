@@ -23,13 +23,72 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
   Map<String, String> _propertyNames = {}; // property_id → name
   Map<String, String> _assetNames = {}; // asset_id → name
   bool _loading = true;
+  String? _selectedPropertyGroup; // null = ทุกกลุ่ม
   String? _selectedPropertyId; // null = ทั้งหมด
 
   List<PmSchedule> get _filteredSchedules {
-    if (_selectedPropertyId == null) return _schedules;
-    return _schedules
-        .where((s) => s.propertyId == _selectedPropertyId)
-        .toList();
+    if (_selectedPropertyId != null) {
+      return _schedules
+          .where((s) => s.propertyId == _selectedPropertyId)
+          .toList();
+    }
+    if (_selectedPropertyGroup == null) return _schedules;
+    return _schedules.where((schedule) {
+      final propertyName =
+          schedule.propertyName ?? _propertyNames[schedule.propertyId];
+      if (propertyName == null) return false;
+      return _getPropertyGroup(propertyName) == _selectedPropertyGroup;
+    }).toList();
+  }
+
+  String _getPropertyGroup(String propertyName) {
+    final match = RegExp(r'^([A-Za-z]+-[A-Za-z]+)').firstMatch(propertyName);
+    if (match != null) return match.group(1)!.toUpperCase();
+
+    final fallback = RegExp(r'^(.+?)\d+$').firstMatch(propertyName);
+    if (fallback != null) return fallback.group(1)!.toUpperCase();
+
+    return propertyName.toUpperCase();
+  }
+
+  void _resetPropertyFilters() {
+    setState(() {
+      _selectedPropertyGroup = null;
+      _selectedPropertyId = null;
+    });
+  }
+
+  void _togglePropertyGroup(String group) {
+    setState(() {
+      if (_selectedPropertyGroup == group) {
+        _selectedPropertyGroup = null;
+        _selectedPropertyId = null;
+        return;
+      }
+
+      _selectedPropertyGroup = group;
+      if (_selectedPropertyId != null) {
+        final selectedName = _propertyNames[_selectedPropertyId!];
+        if (selectedName == null || _getPropertyGroup(selectedName) != group) {
+          _selectedPropertyId = null;
+        }
+      }
+    });
+  }
+
+  void _toggleProperty(String propertyId) {
+    setState(() {
+      if (_selectedPropertyId == propertyId) {
+        _selectedPropertyId = null;
+        return;
+      }
+
+      _selectedPropertyId = propertyId;
+      final selectedName = _propertyNames[propertyId];
+      if (selectedName != null) {
+        _selectedPropertyGroup = _getPropertyGroup(selectedName);
+      }
+    });
   }
 
   @override
@@ -52,6 +111,12 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
       _propertyNames = {
         for (final p in props) p['id'] as String: p['name'] as String,
       };
+      if (_selectedPropertyId != null) {
+        final selectedName = _propertyNames[_selectedPropertyId!];
+        if (selectedName != null) {
+          _selectedPropertyGroup = _getPropertyGroup(selectedName);
+        }
+      }
 
       _schedules = data.map((e) => PmSchedule.fromJson(e)).toList();
 
@@ -529,14 +594,29 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
         .where((e) => usedPropertyIds.contains(e.key))
         .toList()
       ..sort((a, b) => a.value.compareTo(b.value));
+    final groupedFilterProperties = <String, List<MapEntry<String, String>>>{};
+    for (final entry in filterProperties) {
+      final group = _getPropertyGroup(entry.value);
+      groupedFilterProperties.putIfAbsent(group, () => []).add(entry);
+    }
+    final filterGroups = groupedFilterProperties.keys.toList()..sort();
+    final visiblePropertyOptions = _selectedPropertyGroup == null
+        ? const <MapEntry<String, String>>[]
+        : (groupedFilterProperties[_selectedPropertyGroup] ?? const [])
+              .toList()
+          ..sort((a, b) => a.value.compareTo(b.value));
 
     final displayed = _filteredSchedules;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selectedPropertyId != null
-            ? 'PM: ${_propertyNames[_selectedPropertyId] ?? _selectedPropertyId}'
-            : 'Preventive Maintenance'),
+        title: Text(
+          _selectedPropertyId != null
+              ? 'PM: ${_propertyNames[_selectedPropertyId] ?? _selectedPropertyId}'
+              : _selectedPropertyGroup != null
+              ? 'PM: $_selectedPropertyGroup'
+              : 'Preventive Maintenance',
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.view_list_rounded),
@@ -550,43 +630,76 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
           : Column(
               children: [
                 // Property filter chips
-                if (filterProperties.isNotEmpty)
-                  SizedBox(
-                    height: 44,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
+                if (filterGroups.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Column(
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: FilterChip(
-                            label: const Text('ทั้งหมด'),
-                            selected: _selectedPropertyId == null,
-                            onSelected: (_) {
-                              setState(() => _selectedPropertyId = null);
-                            },
+                        SizedBox(
+                          height: 44,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 4,
+                            ),
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: FilterChip(
+                                  label: const Text('ทั้งหมด'),
+                                  selected: _selectedPropertyGroup == null &&
+                                      _selectedPropertyId == null,
+                                  onSelected: (_) => _resetPropertyFilters(),
+                                ),
+                              ),
+                              ...filterGroups.map(
+                                (group) => Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: FilterChip(
+                                    label: Text(group),
+                                    selected: _selectedPropertyGroup == group,
+                                    onSelected: (_) => _togglePropertyGroup(group),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        ...filterProperties.map(
-                          (e) => Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: FilterChip(
-                              label: Text(e.value),
-                              selected: _selectedPropertyId == e.key,
-                              onSelected: (_) {
-                                setState(() {
-                                  _selectedPropertyId =
-                                      _selectedPropertyId == e.key
-                                          ? null
-                                          : e.key;
-                                });
-                              },
+                        if (_selectedPropertyGroup != null &&
+                            visiblePropertyOptions.isNotEmpty)
+                          SizedBox(
+                            height: 44,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: FilterChip(
+                                    label: const Text('ทุกหลังในกลุ่ม'),
+                                    selected: _selectedPropertyId == null,
+                                    onSelected: (_) {
+                                      setState(() => _selectedPropertyId = null);
+                                    },
+                                  ),
+                                ),
+                                ...visiblePropertyOptions.map(
+                                  (entry) => Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: FilterChip(
+                                      label: Text(entry.value),
+                                      selected: _selectedPropertyId == entry.key,
+                                      onSelected: (_) => _toggleProperty(entry.key),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
                       ],
                     ),
                   ),
