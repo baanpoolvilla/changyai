@@ -370,7 +370,26 @@ class _PurchaseOrderDetailScreenState
                   onPressed: () => Navigator.pop(ctx, false),
                   child: const Text('ยกเลิก')),
               FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
+                onPressed: () {
+                  // validate all qty > 0 and price >= 0
+                  for (int i = 0; i < items.length; i++) {
+                    final qty = int.tryParse(qtyCtrl[i].text) ?? 0;
+                    final price = double.tryParse(priceCtrl[i].text);
+                    if (qty <= 0) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                          content: Text(
+                              'กรุณากรอกจำนวนของ "${items[i].name}"')));
+                      return;
+                    }
+                    if (price == null || price < 0) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                          content: Text(
+                              'กรุณากรอกราคาของ "${items[i].name}"')));
+                      return;
+                    }
+                  }
+                  Navigator.pop(ctx, true);
+                },
                 style: FilledButton.styleFrom(backgroundColor: Colors.blue),
                 child: const Text('ยืนยันสั่งซื้อ'),
               ),
