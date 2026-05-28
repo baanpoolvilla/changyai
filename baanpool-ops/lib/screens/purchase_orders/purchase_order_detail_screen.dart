@@ -314,8 +314,8 @@ class _PurchaseOrderDetailScreenState
     if (mounted) setState(() => _actionLoading = false);
   }
 
-  // ─── รับของ: ราคา + หลายรูป → received + expense ─────────
-  Future<void> _receiveWithPricing() async {
+  // ─── ยืนยันดำเนินการ: ราคา + รูป PO → ordered + expense ──────
+  Future<void> _confirmOrderWithPricing() async {
     if (_order == null) return;
     final items = _order!.items;
     if (items.isEmpty) {
@@ -325,8 +325,10 @@ class _PurchaseOrderDetailScreenState
     }
 
     final picker = ImagePicker();
-    final qtyCtrl = items.map((_) => TextEditingController(text: '1')).toList();
-    final priceCtrl = items.map((_) => TextEditingController()).toList();
+    final qtyCtrl = items.map((item) => TextEditingController(
+        text: item.qty > 0 ? '${item.qty}' : '1')).toList();
+    final priceCtrl = items.map((item) => TextEditingController(
+        text: item.unitPrice > 0 ? '${item.unitPrice}' : '')).toList();
     final pickedImages = <XFile>[];
 
     final confirmed = await showDialog<bool>(
@@ -340,12 +342,17 @@ class _PurchaseOrderDetailScreenState
                 (double.tryParse(priceCtrl[i].text) ?? 0);
           }
           return AlertDialog(
-            title: const Text('รับของ — กรอกราคา + แนบใบเสร็จ'),
+            title: const Text('ยืนยันดำเนินการสั่งซื้อ'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const Text(
+                    'กรอกจำนวนและราคาของที่ซื้อ แล้วแนบรูปใบสั่งซื้อ (ถ้ามี)',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 12),
                   ..._pricingRows(items, qtyCtrl, priceCtrl, setDlg),
                   const Divider(),
                   Align(
@@ -364,8 +371,8 @@ class _PurchaseOrderDetailScreenState
                   child: const Text('ยกเลิก')),
               FilledButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                style: FilledButton.styleFrom(backgroundColor: Colors.green),
-                child: const Text('บันทึกการรับของ'),
+                style: FilledButton.styleFrom(backgroundColor: Colors.blue),
+                child: const Text('ยืนยันสั่งซื้อ'),
               ),
             ],
           );
@@ -385,21 +392,88 @@ class _PurchaseOrderDetailScreenState
     setState(() => _actionLoading = true);
     try {
       final now = DateTime.now();
-      final existingUrls = _order?.receiptImageUrls ?? [];
-      final newUrls = await _uploadImages(capturedImages, now);
-      final allUrls = [...existingUrls, ...newUrls];
+      final urls = await _uploadImages(capturedImages, now);
       final totalPrice = _calcTotal(capturedQty, capturedPrice);
       final updatedItems = _buildItems(items, capturedQty, capturedPrice);
 
       await _service.updatePurchaseOrder(widget.orderId, {
-        'status': 'received',
-        if (allUrls.isNotEmpty) 'receipt_image_url': allUrls.first,
-        'receipt_image_urls': allUrls,
+        'status': 'ordered',
+        if (urls.isNotEmpty) 'receipt_image_url': urls.first,
+        'receipt_image_urls': urls,
         'items': updatedItems,
         'total_price': totalPrice,
         'updated_at': now.toIso8601String(),
       });
       if (totalPrice > 0) await _createExpense(totalPrice, now);
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ยืนยันการสั่งซื้อเรียบร้อยแล้ว')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: $e')));
+      }
+    }
+    if (mounted) setState(() => _actionLoading = false);
+  }
+
+  // ─── รับของ: แนบรูปใบเสร็จอย่างเดียว → received ──────────
+  Future<void> _receiveWithImage() async {
+    if (_order == null) return;
+
+    final picker = ImagePicker();
+    final pickedImages = <XFile>[];
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          title: const Text('ยืนยันรับของ'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'แนบรูปใบเสร็จหรือรูปสินค้าที่รับมา (ถ้ามี)',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              _imagePickerRow(picker, pickedImages, setDlg),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('ยกเลิก')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(backgroundColor: Colors.green),
+              child: const Text('ยืนยันรับของ'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final capturedImages = List<XFile>.from(pickedImages);
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _actionLoading = true);
+    try {
+      final now = DateTime.now();
+      final existingUrls = _order?.receiptImageUrls ?? [];
+      final newUrls = await _uploadImages(capturedImages, now);
+      final allUrls = [...existingUrls, ...newUrls];
+
+      await _service.updatePurchaseOrder(widget.orderId, {
+        'status': 'received',
+        if (allUrls.isNotEmpty) 'receipt_image_url': allUrls.first,
+        'receipt_image_urls': allUrls,
+        'updated_at': now.toIso8601String(),
+      });
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -755,6 +829,7 @@ class _PurchaseOrderDetailScreenState
     final isAdmin = role == UserRole.admin;
     final isAssignedUser = currentUserId != null &&
         (_order?.poAssignedTo == currentUserId ||
+            _order?.createdBy == currentUserId ||
             (_order?.isSelfPurchase == true &&
                 _order?.createdBy == currentUserId));
 
@@ -1187,7 +1262,7 @@ class _PurchaseOrderDetailScreenState
                           ]),
                         ],
 
-                        // [3] ยืนยันดำเนินการ (approved → ordered)
+                        // [3] ยืนยันดำเนินการ: กรอกราคา + รูป (approved → ordered)
                         if (_order!.status == POStatus.approved &&
                             !_order!.isSelfPurchase &&
                             (isCeo || isAssignedUser)) ...[
@@ -1195,16 +1270,16 @@ class _PurchaseOrderDetailScreenState
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton.icon(
-                              onPressed: () => _updateStatus('ordered'),
+                              onPressed: _confirmOrderWithPricing,
                               icon: const Icon(
                                   Icons.local_shipping_outlined),
                               label: const Text(
-                                  'ยืนยันดำเนินการ — ไปซื้อของแล้ว'),
+                                  'ยืนยันดำเนินการ — กรอกราคา + แนบรูป'),
                             ),
                           ),
                         ],
 
-                        // [4] รับของ + ราคา + หลายรูป (ordered → received)
+                        // [4] รับของ: แนบรูปใบเสร็จ (ordered → received)
                         if (_order!.status == POStatus.ordered &&
                             !_order!.isSelfPurchase &&
                             (isCeo || isAssignedUser)) ...[
@@ -1212,11 +1287,11 @@ class _PurchaseOrderDetailScreenState
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
-                              onPressed: _receiveWithPricing,
+                              onPressed: _receiveWithImage,
                               icon: const Icon(
-                                  Icons.receipt_long_outlined),
+                                  Icons.inventory_2_outlined),
                               label: const Text(
-                                  'รับของ — กรอกราคา + แนบใบเสร็จ'),
+                                  'รับของ — แนบรูปใบเสร็จ'),
                             ),
                           ),
                         ],
