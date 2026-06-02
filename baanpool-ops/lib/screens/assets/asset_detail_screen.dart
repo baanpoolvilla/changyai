@@ -399,7 +399,8 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
     }
   }
 
-  /// Notify the property manager (caretaker) when PM is created without technician
+  /// สร้าง in-app notification สำหรับผู้ดูแลบ้าน เมื่อสร้าง PM ใหม่
+  /// (LINE จะแจ้งเฉพาะวันครบกำหนดผ่าน check_pm_due_schedules RPC)
   Future<void> _notifyManagerForUnassignedPm({
     required String pmTitle,
     required DateTime nextDueDate,
@@ -410,7 +411,6 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
     final assetName = _asset!.name;
 
     try {
-      // Get property info for the name and caretaker
       final propData = await _service.getProperty(propertyId);
       final propertyName = propData['name'] as String? ?? 'ไม่ทราบ';
       final caretakerId = propData['caretaker_id'] as String?;
@@ -418,82 +418,23 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
       final dateStr =
           '${nextDueDate.day}/${nextDueDate.month}/${nextDueDate.year}';
 
-      // Collect recipient IDs (caretaker + admins/managers)
-      final recipientIds = <String>{};
+      // In-app notification เฉพาะผู้ดูแลบ้าน — LINE จะแจ้งเมื่อถึงกำหนด
       if (caretakerId != null && caretakerId.isNotEmpty) {
-        recipientIds.add(caretakerId);
-      }
-
-      // Also notify admins/managers via LINE
-      final client = Supabase.instance.client;
-
-      // Get managers and admins
-      final managers = await client
-          .from('users')
-          .select('id, full_name, line_user_id, role')
-          .inFilter('role', ['admin', 'owner', 'manager']);
-      for (final m in managers) {
-        recipientIds.add(m['id'] as String);
-        // Send LINE notification
-        final lineUserId = m['line_user_id'] as String?;
-        if (lineUserId != null && lineUserId.isNotEmpty) {
-          await _service.sendLineNotification(
-            lineUserId: lineUserId,
-            message:
-                '📋 PM ใหม่ยังไม่มอบหมายช่าง\n'
-                '🔧 $pmTitle\n'
-                '🏠 บ้าน: $propertyName\n'
-                '⚙️ อุปกรณ์: $assetName\n'
-                '📅 กำหนด: $dateStr\n'
-                '🔄 ความถี่: ${frequency.displayName}\n'
-                '⚠️ กรุณามอบหมายช่างด้วย',
-          );
-        }
-      }
-
-      // Send LINE to caretaker
-      if (caretakerId != null && caretakerId.isNotEmpty) {
-        final caretaker = await client
-            .from('users')
-            .select('line_user_id')
-            .eq('id', caretakerId)
-            .maybeSingle();
-        if (caretaker != null) {
-          final lineUserId = caretaker['line_user_id'] as String?;
-          if (lineUserId != null && lineUserId.isNotEmpty) {
-            // Use the service's internal push via the public method
-            await _service.sendLineNotification(
-              lineUserId: lineUserId,
-              message:
-                  '📋 PM ใหม่ยังไม่มอบหมายช่าง\n'
-                  '🔧 $pmTitle\n'
-                  '🏠 บ้าน: $propertyName\n'
-                  '⚙️ อุปกรณ์: $assetName\n'
-                  '📅 กำหนด: $dateStr\n'
-                  '🔄 ความถี่: ${frequency.displayName}\n'
-                  '⚠️ กรุณามอบหมายช่างด้วย',
-            );
-          }
-        }
-      }
-
-      // Create in-app notifications for all recipients
-      for (final userId in recipientIds) {
         try {
+          final client = Supabase.instance.client;
           await client.from('notifications').insert({
-            'user_id': userId,
-            'title': '📋 PM ใหม่ยังไม่มอบหมายช่าง',
+            'user_id': caretakerId,
+            'title': '📋 PM ใหม่: $pmTitle',
             'body':
-                '🔧 $pmTitle\n🏠 บ้าน: $propertyName\n⚙️ อุปกรณ์: $assetName\n📅 กำหนด: $dateStr\n⚠️ กรุณามอบหมายช่างด้วย',
+                '🔧 $pmTitle\n🏠 บ้าน: $propertyName\n⚙️ อุปกรณ์: $assetName\n📅 กำหนด: $dateStr',
             'type': 'pm',
           });
         } catch (_) {}
       }
 
-      // Refresh notification service
       await NotificationService().refresh();
     } catch (e) {
-      debugPrint('Notify manager for unassigned PM error: $e');
+      debugPrint('Notify caretaker for PM error: $e');
     }
   }
 

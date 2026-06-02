@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/router.dart';
 import 'app/theme.dart';
 import 'services/auth_state_service.dart';
-import 'services/line_notify_service.dart';
 import 'services/notification_service.dart';
 
 Future<void> main() async {
@@ -44,18 +43,11 @@ Future<void> main() async {
   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
     if (data.event == AuthChangeEvent.signedIn) {
       NotificationService().reinit();
-      // Check PM schedules on login
-      LineNotifyService().checkAndNotifyPmDueSchedules();
+      // PM schedule checks run server-side via pg_cron (once per day)
     } else if (data.event == AuthChangeEvent.signedOut) {
       NotificationService().dispose2();
     }
   });
-
-  // Check PM schedules on app startup (if logged in)
-  if (Supabase.instance.client.auth.currentUser != null) {
-    // Run in background, don't block app startup
-    LineNotifyService().checkAndNotifyPmDueSchedules();
-  }
 
   runApp(const ChangYaiApp());
 }
