@@ -42,8 +42,9 @@ class LineAuthService {
       'state': state,
       'scope': 'profile openid email',
       'nonce': nonce,
-      // Force user to add the ChangYai LINE bot as friend
+      // Force consent screen + add OA as friend every login
       'bot_prompt': 'aggressive',
+      'prompt': 'consent',
     });
 
     if (kIsWeb) {
