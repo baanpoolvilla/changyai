@@ -601,10 +601,9 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     }
     final filterGroups = groupedFilterProperties.keys.toList()..sort();
     final visiblePropertyOptions = _selectedPropertyGroup == null
-        ? const <MapEntry<String, String>>[]
-        : (groupedFilterProperties[_selectedPropertyGroup] ?? const [])
-              .toList()
-          ..sort((a, b) => a.value.compareTo(b.value));
+        ? <MapEntry<String, String>>[]
+        : ([...(groupedFilterProperties[_selectedPropertyGroup] ?? [])]
+          ..sort((a, b) => a.value.compareTo(b.value)));
 
     final displayed = _filteredSchedules;
 
