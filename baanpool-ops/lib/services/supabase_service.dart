@@ -112,7 +112,12 @@ class SupabaseService {
         .select();
     if (status != null) query = query.eq('status', status);
     if (statuses != null) query = query.inFilter('status', statuses);
-    if (propertyId != null) query = query.eq('property_id', propertyId);
+    if (propertyId != null) {
+      // แสดงใบงานที่บ้านนี้เป็นบ้านหลัก หรืออยู่ในบ้านเพิ่มเติม
+      query = query.or(
+        'property_id.eq.$propertyId,additional_property_ids.cs.{"$propertyId"}',
+      );
+    }
     if (assignedTo != null) query = query.eq('assigned_to', assignedTo);
     if (priority != null) query = query.eq('priority', priority);
     if (createdToday == true) {

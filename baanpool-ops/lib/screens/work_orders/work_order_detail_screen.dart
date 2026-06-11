@@ -26,6 +26,8 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
   String? _propertyName;
   String? _technicianName;
   String? _creatorName;
+  List<String> _additionalPropertyNames = [];
+  List<String> _ccNames = [];
   bool _loading = true;
   bool _hasExpense = false;
 
@@ -54,6 +56,8 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
+    _additionalPropertyNames = [];
+    _ccNames = [];
     try {
       final woData = await _service.getWorkOrder(widget.workOrderId);
       _workOrder = WorkOrder.fromJson(woData);
@@ -103,6 +107,32 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
               .getUser(_workOrder!.createdBy!)
               .then((user) {
                 _creatorName = user?['full_name'] as String?;
+              })
+              .catchError((_) {}),
+        );
+      }
+
+      // โหลดชื่อบ้านเพิ่มเติม
+      for (final pid in _workOrder!.additionalPropertyIds) {
+        futures.add(
+          _service
+              .getProperty(pid)
+              .then((prop) {
+                _additionalPropertyNames.add(prop['name'] as String? ?? '');
+              })
+              .catchError((_) {}),
+        );
+      }
+
+      // โหลดชื่อ CC users
+      for (final userId in _workOrder!.ccUserIds) {
+        futures.add(
+          _service
+              .getUser(userId)
+              .then((user) {
+                if (user != null) {
+                  _ccNames.add(user['full_name'] as String? ?? '');
+                }
               })
               .catchError((_) {}),
         );
@@ -599,9 +629,15 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                       valueColor: _statusColor(wo.status),
                     ),
 
-                    // Property
+                    // Property (รวมบ้านเพิ่มเติม)
                     if (_propertyName != null)
-                      _infoRow(Icons.home, 'บ้าน', _propertyName!),
+                      _infoRow(
+                        Icons.home,
+                        'บ้าน',
+                        [_propertyName!, ..._additionalPropertyNames]
+                            .where((n) => n.isNotEmpty)
+                            .join(', '),
+                      ),
 
                     // Created by
                     if (_creatorName != null)
@@ -614,6 +650,14 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                     // Responsible person
                     if (_technicianName != null)
                       _infoRow(Icons.engineering, 'รับผิดชอบโดย', _technicianName!),
+
+                    // CC users
+                    if (_ccNames.isNotEmpty)
+                      _infoRow(
+                        Icons.people_outline,
+                        'CC',
+                        _ccNames.join(', '),
+                      ),
 
                     // Priority
                     _infoRow(

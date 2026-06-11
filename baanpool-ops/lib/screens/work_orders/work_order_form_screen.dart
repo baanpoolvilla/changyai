@@ -35,8 +35,9 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   String _priority = 'medium';
-  String? _selectedPropertyId;
+  List<String> _selectedPropertyIds = [];
   String? _selectedTechnicianId;
+  List<String> _ccUserIds = [];
   bool _saving = false;
   bool _loading = true;
 
@@ -51,7 +52,6 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
   @override
   void initState() {
     super.initState();
-    // Pre-fill from PM schedule or other sources
     if (widget.prefillTitle != null) {
       _titleController.text = widget.prefillTitle!;
     }
@@ -59,7 +59,7 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
       _descriptionController.text = widget.prefillDescription!;
     }
     if (widget.prefillPropertyId != null) {
-      _selectedPropertyId = widget.prefillPropertyId;
+      _selectedPropertyIds = [widget.prefillPropertyId!];
     }
     if (widget.prefillTechnicianId != null) {
       _selectedTechnicianId = widget.prefillTechnicianId;
@@ -75,10 +75,9 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
     try {
       final results = await Future.wait([
         _service.getProperties(),
-        _service.getUsers(), // Get all users for assignment
+        _service.getUsers(),
       ]);
       _properties = results[0];
-      // Caretaker role can assign to technicians + all caretakers (including themselves)
       final allUsers = results[1];
       final currentRole = AuthStateService().currentRole;
       if (currentRole == UserRole.caretaker) {
@@ -107,6 +106,14 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+
+    if (_selectedPropertyIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กรุณาเลือกอย่างน้อย 1 บ้าน')),
+      );
+      return;
+    }
+
     setState(() => _saving = true);
 
     try {
@@ -133,9 +140,10 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
         if (url != null) photoUrls.add(url);
       }
 
-      final data = {
+      final data = <String, dynamic>{
         'title': _titleController.text.trim(),
-        'property_id': _selectedPropertyId,
+        // primary property (บ้านแรกที่เลือก)
+        'property_id': _selectedPropertyIds.first,
         'priority': _priority,
         'description': _descriptionController.text.trim().isEmpty
             ? null
@@ -144,11 +152,15 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
         'status': 'open',
         if (widget.prefillAssetId != null) 'asset_id': widget.prefillAssetId,
         if (photoUrls.isNotEmpty) 'photo_urls': photoUrls,
+        // บ้านเพิ่มเติม (ถ้าเลือกมากกว่า 1)
+        if (_selectedPropertyIds.length > 1)
+          'additional_property_ids': _selectedPropertyIds.sublist(1),
+        // CC users
+        if (_ccUserIds.isNotEmpty) 'cc_user_ids': _ccUserIds,
       };
 
       await _service.createWorkOrder(data);
 
-      // LINE notification is sent automatically via database trigger
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -230,6 +242,128 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
     }
   }
 
+  // ─── Property multi-select dialog ────────────────────
+  Future<void> _showPropertyPicker() async {
+    final tempSelected = Set<String>.from(_selectedPropertyIds);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('เลือกบ้าน'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: _properties.map((prop) {
+                final id = prop['id'] as String;
+                return CheckboxListTile(
+                  title: Text(prop['name'] as String),
+                  value: tempSelected.contains(id),
+                  onChanged: (checked) {
+                    setDialogState(() {
+                      if (checked == true) {
+                        tempSelected.add(id);
+                      } else {
+                        tempSelected.remove(id);
+                      }
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('ยกเลิก'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('ตกลง'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _selectedPropertyIds = tempSelected.toList());
+    }
+  }
+
+  // ─── CC multi-select dialog ───────────────────────────
+  Future<void> _showCcPicker() async {
+    final tempSelected = Set<String>.from(_ccUserIds);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('เพิ่ม CC (แจ้งสำเนา)'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'เลือกผู้รับสำเนาการแจ้งเตือน (LINE + in-app)',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: _technicians.map((t) {
+                      final id = t['id'] as String;
+                      // ไม่แสดงคนที่เป็น assigned_to อยู่แล้ว
+                      if (id == _selectedTechnicianId) return const SizedBox.shrink();
+                      return CheckboxListTile(
+                        title: Text(t['full_name'] as String? ?? '-'),
+                        subtitle: Text(_getRoleLabel(t['role'] as String?)),
+                        value: tempSelected.contains(id),
+                        onChanged: (checked) {
+                          setDialogState(() {
+                            if (checked == true) {
+                              tempSelected.add(id);
+                            } else {
+                              tempSelected.remove(id);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('ยกเลิก'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('ตกลง'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() {
+        // ลบ assigned_to ออกจาก CC ถ้าถูกเลือก
+        tempSelected.remove(_selectedTechnicianId);
+        _ccUserIds = tempSelected.toList();
+      });
+    }
+  }
+
   String _getRoleLabel(String? role) {
     switch (role) {
       case 'admin':
@@ -247,6 +381,24 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
     }
   }
 
+  String? _getUserName(String userId) {
+    try {
+      return _technicians
+          .firstWhere((t) => t['id'] == userId)['full_name'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _getPropertyName(String propertyId) {
+    try {
+      return _properties
+          .firstWhere((p) => p['id'] == propertyId)['name'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -260,7 +412,7 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Title
+                    // ─── หัวข้องาน ────────────────────────────
                     TextFormField(
                       controller: _titleController,
                       decoration: const InputDecoration(
@@ -272,31 +424,15 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Property dropdown
-                    DropdownButtonFormField<String>(
-                      value: _selectedPropertyId,
-                      decoration: const InputDecoration(
-                        labelText: 'บ้าน *',
-                        prefixIcon: Icon(Icons.home),
-                      ),
-                      items: _properties
-                          .map(
-                            (p) => DropdownMenuItem(
-                              value: p['id'] as String,
-                              child: Text(p['name'] as String),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) => setState(() => _selectedPropertyId = v),
-                      validator: (v) => v == null ? 'กรุณาเลือกบ้าน' : null,
-                    ),
+                    // ─── เลือกบ้าน (multi-select) ─────────────
+                    _buildPropertySection(),
                     const SizedBox(height: 16),
 
-                    // Technician dropdown
+                    // ─── ผู้รับผิดชอบหลัก (1 คน) ─────────────
                     DropdownButtonFormField<String?>(
                       value: _selectedTechnicianId,
                       decoration: const InputDecoration(
-                        labelText: 'รับผิดชอบโดย',
+                        labelText: 'รับผิดชอบโดย (หลัก)',
                         prefixIcon: Icon(Icons.person),
                       ),
                       items: [
@@ -313,12 +449,21 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
                           ),
                         ),
                       ],
-                      onChanged: (v) =>
-                          setState(() => _selectedTechnicianId = v),
+                      onChanged: (v) {
+                        setState(() {
+                          _selectedTechnicianId = v;
+                          // ลบออกจาก CC ถ้าเลือกเป็น assigned_to
+                          _ccUserIds.remove(v);
+                        });
+                      },
                     ),
                     const SizedBox(height: 16),
 
-                    // Priority
+                    // ─── CC (แจ้งสำเนา หลายคน) ───────────────
+                    _buildCcSection(),
+                    const SizedBox(height: 16),
+
+                    // ─── ความสำคัญ ───────────────────────────
                     DropdownButtonFormField<String>(
                       value: _priority,
                       decoration: const InputDecoration(
@@ -331,14 +476,17 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
                           value: 'medium',
                           child: Text('ปานกลาง'),
                         ),
-                        DropdownMenuItem(value: 'urgent', child: Text('เร่งด่วน')),
+                        DropdownMenuItem(
+                          value: 'urgent',
+                          child: Text('เร่งด่วน'),
+                        ),
                       ],
                       onChanged: (v) =>
                           setState(() => _priority = v ?? 'medium'),
                     ),
                     const SizedBox(height: 16),
 
-                    // Description
+                    // ─── รายละเอียด ───────────────────────────
                     TextFormField(
                       controller: _descriptionController,
                       decoration: const InputDecoration(
@@ -349,14 +497,15 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Photo attachment
+                    // ─── รูปภาพ ───────────────────────────────
                     if (_imageBytes.isNotEmpty) ...[
                       SizedBox(
                         height: 100,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: _imageBytes.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 8),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 8),
                           itemBuilder: (context, index) {
                             return Stack(
                               children: [
@@ -411,7 +560,7 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Submit
+                    // ─── บันทึก ───────────────────────────────
                     FilledButton(
                       onPressed: _saving ? null : _save,
                       child: _saving
@@ -426,6 +575,136 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
                 ),
               ),
             ),
+    );
+  }
+
+  // ─── Widget: เลือกบ้าน (multi-select) ─────────────────
+  Widget _buildPropertySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.home, size: 20, color: Colors.grey),
+            const SizedBox(width: 8),
+            const Text(
+              'บ้าน *',
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: _showPropertyPicker,
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('เลือกบ้าน'),
+              style: TextButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              ),
+            ),
+          ],
+        ),
+        if (_selectedPropertyIds.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(left: 4, top: 2, bottom: 4),
+            child: Text(
+              'กรุณาเลือกอย่างน้อย 1 บ้าน',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+          )
+        else ...[
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: _selectedPropertyIds.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final id = entry.value;
+              final name = _getPropertyName(id) ?? id;
+              return Chip(
+                avatar: idx == 0
+                    ? const Icon(Icons.home, size: 14)
+                    : null,
+                label: Text(
+                  idx == 0 ? '$name (หลัก)' : name,
+                  style: const TextStyle(fontSize: 12),
+                ),
+                onDeleted: () =>
+                    setState(() => _selectedPropertyIds.remove(id)),
+                deleteIconColor: Colors.red.shade400,
+                backgroundColor: idx == 0
+                    ? Colors.blue.shade50
+                    : Colors.grey.shade100,
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 4),
+          if (_selectedPropertyIds.length > 1)
+            Text(
+              '${_selectedPropertyIds.length} บ้าน — บ้านแรกเป็นหลัก',
+              style: TextStyle(
+                  color: Colors.blue.shade700,
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic),
+            ),
+        ],
+        const Divider(height: 16),
+      ],
+    );
+  }
+
+  // ─── Widget: CC users ──────────────────────────────────
+  Widget _buildCcSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.people_outline, size: 20, color: Colors.grey),
+            const SizedBox(width: 8),
+            const Text(
+              'CC (แจ้งสำเนา)',
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: _showCcPicker,
+              icon: const Icon(Icons.person_add_alt_1, size: 16),
+              label: const Text('เพิ่ม CC'),
+              style: TextButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              ),
+            ),
+          ],
+        ),
+        if (_ccUserIds.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(left: 4, bottom: 4),
+            child: Text(
+              'ไม่มี (ไม่บังคับ)',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+          )
+        else ...[
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: _ccUserIds.map((id) {
+              final name = _getUserName(id) ?? id;
+              return Chip(
+                avatar: const Icon(Icons.person_outline, size: 14),
+                label: Text(name, style: const TextStyle(fontSize: 12)),
+                onDeleted: () =>
+                    setState(() => _ccUserIds.remove(id)),
+                deleteIconColor: Colors.red.shade400,
+                backgroundColor: Colors.orange.shade50,
+              );
+            }).toList(),
+          ),
+        ],
+        const Divider(height: 16),
+      ],
     );
   }
 }

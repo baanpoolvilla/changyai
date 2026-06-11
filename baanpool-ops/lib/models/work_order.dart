@@ -17,6 +17,8 @@ class WorkOrder {
   final String? completionNotes;
   final List<String> photoUrls;
   final List<String> afterPhotoUrls;
+  final List<String> ccUserIds;
+  final List<String> additionalPropertyIds;
   final DateTime createdAt;
 
   const WorkOrder({
@@ -35,6 +37,8 @@ class WorkOrder {
     this.completionNotes,
     this.photoUrls = const [],
     this.afterPhotoUrls = const [],
+    this.ccUserIds = const [],
+    this.additionalPropertyIds = const [],
     required this.createdAt,
   });
 
@@ -72,6 +76,16 @@ class WorkOrder {
               ?.map((e) => e as String)
               .toList() ??
           [],
+      ccUserIds:
+          (json['cc_user_ids'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+      additionalPropertyIds:
+          (json['additional_property_ids'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
       createdAt: parseServerTimestampToThai(json['created_at'] as String),
     );
   }
@@ -88,6 +102,9 @@ class WorkOrder {
     'completed_at': completedAt?.toIso8601String(),
     'completion_notes': completionNotes,
     'photo_urls': photoUrls,
+    if (ccUserIds.isNotEmpty) 'cc_user_ids': ccUserIds,
+    if (additionalPropertyIds.isNotEmpty)
+      'additional_property_ids': additionalPropertyIds,
   };
 
   bool get isOverdue =>

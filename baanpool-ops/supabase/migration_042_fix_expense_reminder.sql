@@ -19,6 +19,7 @@ END $$;
 -- 2. แทนด้วย function ใหม่แบบ digest
 --    รวมทุก work order ที่ค้างต่อ caretaker → ส่ง LINE 1 ข้อความ/คน/วัน
 --    + สร้าง in-app notification รายรายการ (dedup รายวัน)
+DROP FUNCTION IF EXISTS public.notify_missing_expenses();
 CREATE OR REPLACE FUNCTION public.notify_missing_expenses()
 RETURNS INT
 LANGUAGE plpgsql
