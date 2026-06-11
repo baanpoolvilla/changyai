@@ -33,6 +33,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   String? _selectedPmScheduleId;
   List<Map<String, dynamic>> _workOrders = [];
   List<Map<String, dynamic>> _pmSchedules = [];
+  // property IDs ทุกบ้านของ work order ที่เลือก (primary + additional)
+  List<String> _workOrderPropertyIds = [];
 
   // Receipt image
   final ImagePicker _picker = ImagePicker();
@@ -60,6 +62,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       if (widget.workOrderId != null) {
         _selectedWorkOrderId = widget.workOrderId;
         _costType = ExpenseCostType.workOrder;
+        _updateWorkOrderPropertyIds(widget.workOrderId!, results[0]);
       }
       if (widget.pmScheduleId != null) {
         _selectedPmScheduleId = widget.pmScheduleId;
@@ -80,6 +83,26 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     _amountController.dispose();
     _descriptionController.dispose();
     super.dispose();
+  }
+
+  void _updateWorkOrderPropertyIds(
+    String workOrderId,
+    List<Map<String, dynamic>> workOrders,
+  ) {
+    try {
+      final wo = workOrders.firstWhere((w) => w['id'] == workOrderId);
+      final primary = wo['property_id'] as String?;
+      final additional = (wo['additional_property_ids'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [];
+      _workOrderPropertyIds = [
+        if (primary != null) primary,
+        ...additional,
+      ];
+    } catch (_) {
+      _workOrderPropertyIds = [];
+    }
   }
 
   Future<void> _pickReceipt() async {
@@ -150,26 +173,30 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         }
       }
 
-      // Get property_id from the selected source
-      String? propertyId;
-      if (_selectedWorkOrderId != null) {
+      // รวบรวม property IDs ทั้งหมดที่ต้องสร้าง expense ให้
+      List<String?> propertyIds;
+      if (_selectedWorkOrderId != null && _workOrderPropertyIds.isNotEmpty) {
+        // ใบงานหลายบ้าน → สร้าง 1 expense ต่อ 1 บ้าน (เต็มจำนวนทุกบ้าน)
+        propertyIds = _workOrderPropertyIds;
+      } else if (_selectedWorkOrderId != null) {
         final selectedWO = _workOrders.firstWhere(
           (wo) => wo['id'] == _selectedWorkOrderId,
         );
-        propertyId = selectedWO['property_id'] as String?;
+        propertyIds = [selectedWO['property_id'] as String?];
       } else if (_costType == ExpenseCostType.pm &&
           _selectedPmScheduleId != null) {
         final selectedPM = _pmSchedules.firstWhere(
           (pm) => pm['id'] == _selectedPmScheduleId,
         );
-        propertyId = selectedPM['property_id'] as String?;
+        propertyIds = [selectedPM['property_id'] as String?];
+      } else {
+        propertyIds = [null];
       }
 
-      await _service.createExpense({
+      final baseData = <String, dynamic>{
         if (_selectedWorkOrderId != null) 'work_order_id': _selectedWorkOrderId,
         if (_selectedPmScheduleId != null)
           'pm_schedule_id': _selectedPmScheduleId,
-        'property_id': propertyId,
         'amount': isNoExpense ? 0 : double.parse(_amountController.text.trim()),
         'description': _descriptionController.text.trim().isEmpty
             ? (isNoExpense ? 'ไม่มีค่าใช้จ่าย' : null)
@@ -179,16 +206,22 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         'expense_date': thaiDateForDb(),
         'is_no_expense': isNoExpense,
         if (receiptUrl != null) 'receipt_url': receiptUrl,
-      });
+      };
+
+      // สร้าง expense records ทุกบ้านพร้อมกัน
+      await Future.wait(
+        propertyIds.map(
+          (pid) => _service.createExpense({...baseData, 'property_id': pid}),
+        ),
+      );
 
       if (mounted) {
+        final n = propertyIds.length;
+        final msg = isNoExpense
+            ? (n > 1 ? 'บันทึกว่าไม่มีค่าใช้จ่าย ($n บ้าน) สำเร็จ' : 'บันทึกว่าไม่มีค่าใช้จ่ายสำเร็จ')
+            : (n > 1 ? 'บันทึกค่าใช้จ่าย $n บ้านสำเร็จ ✅' : 'บันทึกค่าใช้จ่ายสำเร็จ');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isNoExpense ? 'บันทึกว่าไม่มีค่าใช้จ่ายสำเร็จ' : 'บันทึกค่าใช้จ่ายสำเร็จ',
-            ),
-            backgroundColor: Colors.green,
-          ),
+          SnackBar(content: Text(msg), backgroundColor: Colors.green),
         );
         context.pop();
       }
@@ -230,6 +263,38 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // ─── Notice: ใบงานหลายบ้าน ───────────────
+                    if (_workOrderPropertyIds.length > 1) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.info_outline,
+                                color: Colors.blue.shade700, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'ใบงานนี้มี ${_workOrderPropertyIds.length} บ้าน — '
+                                'ระบบจะสร้าง ${_workOrderPropertyIds.length} รายการค่าใช้จ่าย '
+                                'โดยแต่ละบ้านบันทึกยอดเต็มจำนวนเท่ากัน',
+                                style: TextStyle(
+                                  color: Colors.blue.shade800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
                     // Cost Type selector (Work Order vs PM)
                     DropdownButtonFormField<ExpenseCostType>(
                       value: _costType,
@@ -282,7 +347,14 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                         }).toList(),
                         onChanged: widget.workOrderId != null
                             ? null
-                            : (v) => setState(() => _selectedWorkOrderId = v),
+                            : (v) => setState(() {
+                                  _selectedWorkOrderId = v;
+                                  if (v != null) {
+                                    _updateWorkOrderPropertyIds(v, _workOrders);
+                                  } else {
+                                    _workOrderPropertyIds = [];
+                                  }
+                                }),
                         validator: (v) =>
                             _costType == ExpenseCostType.workOrder && v == null
                             ? 'กรุณาเลือกใบงาน'
