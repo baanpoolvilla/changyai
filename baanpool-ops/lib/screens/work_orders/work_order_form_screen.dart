@@ -616,35 +616,24 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
           Wrap(
             spacing: 8,
             runSpacing: 4,
-            children: _selectedPropertyIds.asMap().entries.map((entry) {
-              final idx = entry.key;
-              final id = entry.value;
+            children: _selectedPropertyIds.map((id) {
               final name = _getPropertyName(id) ?? id;
               return Chip(
-                avatar: idx == 0
-                    ? const Icon(Icons.home, size: 14)
-                    : null,
-                label: Text(
-                  idx == 0 ? '$name (หลัก)' : name,
-                  style: const TextStyle(fontSize: 12),
-                ),
+                label: Text(name, style: const TextStyle(fontSize: 12)),
                 onDeleted: () =>
                     setState(() => _selectedPropertyIds.remove(id)),
                 deleteIconColor: Colors.red.shade400,
-                backgroundColor: idx == 0
-                    ? Colors.blue.shade50
-                    : Colors.grey.shade100,
+                backgroundColor: Colors.blue.shade50,
               );
             }).toList(),
           ),
           const SizedBox(height: 4),
           if (_selectedPropertyIds.length > 1)
             Text(
-              '${_selectedPropertyIds.length} บ้าน — บ้านแรกเป็นหลัก',
+              '${_selectedPropertyIds.length} บ้าน',
               style: TextStyle(
                   color: Colors.blue.shade700,
-                  fontSize: 11,
-                  fontStyle: FontStyle.italic),
+                  fontSize: 11),
             ),
         ],
         const Divider(height: 16),
