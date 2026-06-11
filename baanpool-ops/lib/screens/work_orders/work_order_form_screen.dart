@@ -604,11 +604,15 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
           ],
         ),
         if (_selectedPropertyIds.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(left: 4, top: 2, bottom: 4),
-            child: Text(
-              'กรุณาเลือกอย่างน้อย 1 บ้าน',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
+          GestureDetector(
+            onTap: _showPropertyPicker,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+              child: const Text(
+                'กรุณาเลือกอย่างน้อย 1 บ้าน',
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+              ),
             ),
           )
         else ...[
@@ -667,11 +671,15 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
           ],
         ),
         if (_ccUserIds.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 4),
-            child: Text(
-              'ไม่มี (ไม่บังคับ)',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
+          GestureDetector(
+            onTap: _showCcPicker,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+              child: const Text(
+                'ไม่มี (ไม่บังคับ)',
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+              ),
             ),
           )
         else ...[
