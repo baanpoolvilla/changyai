@@ -43,6 +43,7 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
 
   List<Map<String, dynamic>> _properties = [];
   List<Map<String, dynamic>> _technicians = [];
+  List<Map<String, dynamic>> _allUsers = [];
 
   // Image picker
   final ImagePicker _picker = ImagePicker();
@@ -79,6 +80,7 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
       ]);
       _properties = results[0];
       final allUsers = results[1];
+      _allUsers = allUsers;
       final currentRole = AuthStateService().currentRole;
       if (currentRole == UserRole.caretaker) {
         _technicians = allUsers
@@ -317,7 +319,7 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
                 Flexible(
                   child: ListView(
                     shrinkWrap: true,
-                    children: _technicians.map((t) {
+                    children: _allUsers.map((t) {
                       final id = t['id'] as String;
                       // ไม่แสดงคนที่เป็น assigned_to อยู่แล้ว
                       if (id == _selectedTechnicianId) return const SizedBox.shrink();
@@ -383,7 +385,7 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
 
   String? _getUserName(String userId) {
     try {
-      return _technicians
+      return _allUsers
           .firstWhere((t) => t['id'] == userId)['full_name'] as String?;
     } catch (_) {
       return null;
