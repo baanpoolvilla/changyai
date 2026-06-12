@@ -18,6 +18,7 @@ import '../screens/expenses/expense_report_screen.dart';
 import '../screens/pm/pm_schedule_screen.dart';
 import '../screens/pm/equipment_overview_screen.dart';
 import '../screens/admin/roles_management_screen.dart';
+import '../screens/admin/line_log_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
 import '../screens/contractors/contractors_list_screen.dart';
 import '../screens/contractors/contractor_detail_screen.dart';
@@ -190,6 +191,12 @@ final appRouter = GoRouter(
         GoRoute(
           path: '/admin/roles',
           builder: (context, state) => const RolesManagementScreen(),
+        ),
+
+        // Admin — LINE Notification Log
+        GoRoute(
+          path: '/admin/line-log',
+          builder: (context, state) => const LineLogScreen(),
         ),
 
         // Notifications

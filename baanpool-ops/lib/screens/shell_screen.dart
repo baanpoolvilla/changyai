@@ -124,7 +124,7 @@ class _ShellScreenState extends State<ShellScreen> {
       ),
     );
 
-    // Admin-only: roles management (only role=admin, not owner/manager)
+    // Admin-only: roles management + LINE log (only role=admin, not owner/manager)
     if (_authState.currentRole == UserRole.admin) {
       items.add(
         _NavItem(
@@ -132,6 +132,14 @@ class _ShellScreenState extends State<ShellScreen> {
           icon: Icons.admin_panel_settings_outlined,
           selectedIcon: Icons.admin_panel_settings,
           label: 'จัดการ Roles',
+        ),
+      );
+      items.add(
+        _NavItem(
+          path: '/admin/line-log',
+          icon: Icons.history_outlined,
+          selectedIcon: Icons.history,
+          label: 'Log LINE',
         ),
       );
     }
