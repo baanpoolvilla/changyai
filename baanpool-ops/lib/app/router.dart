@@ -142,6 +142,7 @@ final appRouter = GoRouter(
                   prefillDescription: q['description'],
                   prefillAssetId: q['assetId'],
                   prefillPriority: q['priority'],
+                  prefillPmScheduleId: q['pmScheduleId'],
                 );
               },
             ),

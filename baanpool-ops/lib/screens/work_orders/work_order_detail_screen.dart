@@ -157,8 +157,10 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
           'status': 'completed',
           'completed_at': DateTime.now().toIso8601String(),
         });
-        // Update PM schedule if linked to an asset
-        if (_workOrder?.assetId != null) {
+        // Advance the linked PM schedule (or all PM for asset as fallback)
+        if (_workOrder?.pmScheduleId != null) {
+          await _service.completePmScheduleById(_workOrder!.pmScheduleId!);
+        } else if (_workOrder?.assetId != null) {
           await _service.completePmSchedulesForAsset(_workOrder!.assetId!);
         }
       } else {
@@ -519,8 +521,10 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
         if (notes != null && notes.isNotEmpty) 'completion_notes': notes,
       });
 
-      // Update PM schedule if this work order is linked to an asset
-      if (_workOrder?.assetId != null) {
+      // Advance the linked PM schedule (or all PM for asset as fallback)
+      if (_workOrder?.pmScheduleId != null) {
+        await _service.completePmScheduleById(_workOrder!.pmScheduleId!);
+      } else if (_workOrder?.assetId != null) {
         await _service.completePmSchedulesForAsset(_workOrder!.assetId!);
       }
 

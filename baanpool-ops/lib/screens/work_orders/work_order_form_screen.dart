@@ -14,6 +14,7 @@ class WorkOrderFormScreen extends StatefulWidget {
   final String? prefillDescription;
   final String? prefillAssetId;
   final String? prefillPriority;
+  final String? prefillPmScheduleId;
 
   const WorkOrderFormScreen({
     super.key,
@@ -23,6 +24,7 @@ class WorkOrderFormScreen extends StatefulWidget {
     this.prefillDescription,
     this.prefillAssetId,
     this.prefillPriority,
+    this.prefillPmScheduleId,
   });
 
   @override
@@ -153,6 +155,8 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
         'assigned_to': _selectedTechnicianId,
         'status': 'open',
         if (widget.prefillAssetId != null) 'asset_id': widget.prefillAssetId,
+        if (widget.prefillPmScheduleId != null)
+          'pm_schedule_id': widget.prefillPmScheduleId,
         if (photoUrls.isNotEmpty) 'photo_urls': photoUrls,
         // บ้านเพิ่มเติม (ถ้าเลือกมากกว่า 1)
         if (_selectedPropertyIds.length > 1)

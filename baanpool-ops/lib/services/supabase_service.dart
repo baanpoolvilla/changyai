@@ -275,6 +275,45 @@ class SupabaseService {
     await _client.from('pm_schedules').delete().eq('id', id);
   }
 
+  /// Advance a specific PM schedule after its linked work order is completed
+  Future<void> completePmScheduleById(String pmScheduleId) async {
+    try {
+      final pm = await _client
+          .from('pm_schedules')
+          .select()
+          .eq('id', pmScheduleId)
+          .single();
+      final frequency = pm['frequency'] as String? ?? 'monthly';
+      final now = DateTime.now();
+      final nextDue = _calcNextDueDate(now, frequency);
+      await _client.from('pm_schedules').update({
+        'last_completed_date': now.toIso8601String(),
+        'next_due_date': nextDue.toIso8601String(),
+      }).eq('id', pmScheduleId);
+    } catch (_) {}
+  }
+
+  /// Returns a map of pmScheduleId → workOrderId for open/in-progress work orders
+  Future<Map<String, String>> getPendingWorkOrderIdsByPmSchedule(
+    List<String> pmScheduleIds,
+  ) async {
+    if (pmScheduleIds.isEmpty) return {};
+    try {
+      final data = await _client
+          .from('work_orders')
+          .select('id, pm_schedule_id')
+          .inFilter('pm_schedule_id', pmScheduleIds)
+          .neq('status', 'completed')
+          .neq('status', 'cancelled');
+      return {
+        for (final row in data)
+          row['pm_schedule_id'] as String: row['id'] as String,
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
   /// Complete PM schedules for an asset — update last_completed_date and advance next_due_date
   Future<void> completePmSchedulesForAsset(String assetId) async {
     try {

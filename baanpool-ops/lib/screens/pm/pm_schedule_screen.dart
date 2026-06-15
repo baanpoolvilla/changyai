@@ -22,6 +22,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
   List<PmSchedule> _schedules = [];
   Map<String, String> _propertyNames = {}; // property_id → name
   Map<String, String> _assetNames = {}; // asset_id → name
+  Map<String, String> _pendingWorkOrderIds = {}; // pmScheduleId → workOrderId
   bool _loading = true;
   String? _selectedPropertyGroup; // null = ทุกกลุ่ม
   String? _selectedPropertyId; // null = ทั้งหมด
@@ -137,6 +138,11 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
           };
         } catch (_) {}
       }
+
+      // Load pending work orders linked to PM schedules
+      final pmIds = _schedules.map((s) => s.id).toList();
+      _pendingWorkOrderIds =
+          await _service.getPendingWorkOrderIdsByPmSchedule(pmIds);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -147,7 +153,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
-  void _createWorkOrderFromPm(PmSchedule s) {
+  Future<void> _createWorkOrderFromPm(PmSchedule s) async {
     final dateStr =
         '${s.nextDueDate.day}/${s.nextDueDate.month}/${s.nextDueDate.year}';
     final description =
@@ -158,6 +164,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
       'title': s.title,
       'propertyId': s.propertyId,
       'description': description,
+      'pmScheduleId': s.id,
     };
     if (s.assetId != null) {
       queryParams['assetId'] = s.assetId!;
@@ -172,7 +179,8 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     }
 
     final uri = Uri(path: '/work-orders/new', queryParameters: queryParams);
-    context.push(uri.toString());
+    await context.push(uri.toString());
+    _load();
   }
 
   Future<void> _showCreatePmDialog() async {
@@ -812,40 +820,49 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      statusText,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: statusColor,
-                        fontWeight: FontWeight.bold,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          statusText,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: statusColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 4),
+                      SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: Icon(
+                            Icons.edit_outlined,
+                            size: 16,
+                            color: theme.colorScheme.outline,
+                          ),
+                          tooltip: 'แก้ไข PM',
+                          onPressed: () => _showEditPmDialog(s),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
               if (s.isDueSoon || isOverdue) ...[
                 const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _createWorkOrderFromPm(s),
-                    icon: const Icon(Icons.assignment_add, size: 18),
-                    label: const Text('สร้างใบงาน'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: statusColor,
-                      side: BorderSide(color: statusColor),
-                    ),
-                  ),
-                ),
+                _buildWorkOrderButton(s, statusColor),
               ],
               if (s.description != null) ...[
                 const SizedBox(height: 4),
@@ -870,6 +887,136 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showEditPmDialog(PmSchedule s) async {
+    final titleCtrl = TextEditingController(text: s.title);
+    final descCtrl = TextEditingController(text: s.description ?? '');
+    DateTime nextDue = s.nextDueDate;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('แก้ไข PM Schedule'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleCtrl,
+                  decoration: const InputDecoration(labelText: 'ชื่องาน PM *'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descCtrl,
+                  decoration: const InputDecoration(labelText: 'รายละเอียด'),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('วันครบกำหนดถัดไป'),
+                  subtitle: Text(
+                    '${nextDue.day}/${nextDue.month}/${nextDue.year}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  trailing: const Icon(Icons.calendar_today),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: ctx,
+                      initialDate: nextDue,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+                    );
+                    if (picked != null) setDialogState(() => nextDue = picked);
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('ยกเลิก'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (titleCtrl.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('กรุณากรอกชื่องาน PM')),
+                  );
+                  return;
+                }
+                Navigator.pop(ctx, true);
+              },
+              child: const Text('บันทึก'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (saved != true) return;
+
+    try {
+      await _service.updatePmSchedule(s.id, {
+        'title': titleCtrl.text.trim(),
+        'description': descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+        'next_due_date': nextDue.toIso8601String().split('T').first,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('แก้ไข PM สำเร็จ'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('แก้ไข PM ล้มเหลว: $e')),
+        );
+      }
+    }
+  }
+
+  Widget _buildWorkOrderButton(PmSchedule s, Color statusColor) {
+    final pendingId = _pendingWorkOrderIds[s.id];
+    if (pendingId != null) {
+      return SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: () async {
+            await context.push('/work-orders/$pendingId');
+            _load();
+          },
+          icon: const Icon(Icons.hourglass_top, size: 18),
+          label: const Text('สร้างใบงานแล้วรอดำเนินการ'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.orange,
+            side: const BorderSide(color: Colors.orange),
+          ),
+        ),
+      );
+    }
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => _createWorkOrderFromPm(s),
+        icon: const Icon(Icons.assignment_add, size: 18),
+        label: const Text('สร้างใบงาน'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: statusColor,
+          side: BorderSide(color: statusColor),
         ),
       ),
     );
