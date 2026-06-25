@@ -157,8 +157,11 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
           'status': 'completed',
           'completed_at': DateTime.now().toIso8601String(),
         });
-        // Advance the linked PM schedule (or all PM for asset as fallback)
-        if (_workOrder?.pmScheduleId != null) {
+        // Advance linked PM schedules (batch or single, with asset fallback)
+        final batchIds = _workOrder?.pmScheduleIds ?? [];
+        if (batchIds.isNotEmpty) {
+          await _service.completePmSchedulesByIds(batchIds);
+        } else if (_workOrder?.pmScheduleId != null) {
           await _service.completePmScheduleById(_workOrder!.pmScheduleId!);
         } else if (_workOrder?.assetId != null) {
           await _service.completePmSchedulesForAsset(_workOrder!.assetId!);

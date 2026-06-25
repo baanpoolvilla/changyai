@@ -143,6 +143,14 @@ final appRouter = GoRouter(
                   prefillAssetId: q['assetId'],
                   prefillPriority: q['priority'],
                   prefillPmScheduleId: q['pmScheduleId'],
+                  prefillPmScheduleIds: q['pmScheduleIds']
+                      ?.split(',')
+                      .where((s) => s.isNotEmpty)
+                      .toList(),
+                  prefillAdditionalPropertyIds: q['additionalPropertyIds']
+                      ?.split(',')
+                      .where((s) => s.isNotEmpty)
+                      .toList(),
                 );
               },
             ),

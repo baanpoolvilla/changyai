@@ -293,22 +293,56 @@ class SupabaseService {
     } catch (_) {}
   }
 
-  /// Returns a map of pmScheduleId → workOrderId for open/in-progress work orders
+  /// Complete multiple PM schedules at once (batch work order closure)
+  Future<void> completePmSchedulesByIds(List<String> pmScheduleIds) async {
+    if (pmScheduleIds.isEmpty) return;
+    for (final id in pmScheduleIds) {
+      await completePmScheduleById(id);
+    }
+  }
+
+  /// Returns a map of pmScheduleId → workOrderId for open/in-progress work orders.
+  /// Checks both single pm_schedule_id and batch pm_schedule_ids array.
   Future<Map<String, String>> getPendingWorkOrderIdsByPmSchedule(
     List<String> pmScheduleIds,
   ) async {
     if (pmScheduleIds.isEmpty) return {};
     try {
-      final data = await _client
+      final result = <String, String>{};
+
+      // Single PM link (legacy / single-house work orders)
+      final data1 = await _client
           .from('work_orders')
           .select('id, pm_schedule_id')
           .inFilter('pm_schedule_id', pmScheduleIds)
           .neq('status', 'completed')
           .neq('status', 'cancelled');
-      return {
-        for (final row in data)
-          row['pm_schedule_id'] as String: row['id'] as String,
-      };
+      for (final row in data1) {
+        result[row['pm_schedule_id'] as String] = row['id'] as String;
+      }
+
+      // Batch PM link (multi-house work orders via pm_schedule_ids array)
+      final data2 = await _client
+          .from('work_orders')
+          .select('id, pm_schedule_ids')
+          .neq('status', 'completed')
+          .neq('status', 'cancelled');
+      for (final row in data2) {
+        final ids =
+            (row['pm_schedule_ids'] as List<dynamic>?)
+                ?.map((e) => e as String)
+                .toList() ??
+            [];
+        if (ids.isEmpty) continue;
+        final woId = row['id'] as String;
+        for (final pmId in ids) {
+          if (pmScheduleIds.contains(pmId) && !result.containsKey(pmId)) {
+            result[pmId] = woId;
+          }
+        }
+      }
+
+      return result;
     } catch (_) {
       return {};
     }

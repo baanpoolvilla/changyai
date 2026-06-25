@@ -744,12 +744,96 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                 ),
               ],
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showCreatePmDialog,
-        icon: const Icon(Icons.add),
-        label: const Text('สร้าง PM'),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: 'batch_wo',
+            onPressed: _showBatchWorkOrderDialog,
+            tooltip: 'สร้างใบงานรวมจาก PM',
+            child: const Icon(Icons.playlist_add_check),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'create_pm',
+            onPressed: _showCreatePmDialog,
+            icon: const Icon(Icons.add),
+            label: const Text('สร้าง PM'),
+          ),
+        ],
       ),
     );
+  }
+
+  Future<void> _showBatchWorkOrderDialog() async {
+    // Candidates: visible PMs that don't already have a pending work order
+    final candidates = _filteredSchedules
+        .where((s) => !_pendingWorkOrderIds.containsKey(s.id))
+        .toList();
+
+    if (candidates.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่มี PM ที่สามารถรวมใบงานได้')),
+        );
+      }
+      return;
+    }
+
+    final selected = await showDialog<Set<String>>(
+      context: context,
+      builder: (ctx) => _BatchPmDialog(
+        candidates: candidates,
+        propertyNames: _propertyNames,
+        assetNames: _assetNames,
+      ),
+    );
+
+    if (selected == null || selected.isEmpty || !mounted) return;
+
+    final selectedPms = candidates.where((s) => selected.contains(s.id)).toList();
+    final first = selectedPms.first;
+
+    // Build description listing all houses
+    final houseLines = selectedPms.map((s) {
+      final name =
+          s.propertyName ?? _propertyNames[s.propertyId] ?? s.propertyId;
+      final d = s.nextDueDate;
+      return '- $name (ครบกำหนด: ${d.day}/${d.month}/${d.year})';
+    }).join('\n');
+    final description =
+        'PM: ${first.title}\nรวม ${selectedPms.length} หลัง:\n$houseLines'
+        '\nความถี่: ${first.frequency.displayName}'
+        '${first.description != null ? "\nรายละเอียด: ${first.description}" : ""}';
+
+    // Primary property = first selected, additional = the rest
+    final additionalPropertyIds = selectedPms.skip(1).map((s) => s.propertyId).toList();
+
+    final queryParams = <String, String>{
+      'title': first.title,
+      'propertyId': first.propertyId,
+      'description': description,
+      'pmScheduleIds': selected.join(','),
+      if (additionalPropertyIds.isNotEmpty)
+        'additionalPropertyIds': additionalPropertyIds.join(','),
+      if (first.assetId != null) 'assetId': first.assetId!,
+    };
+
+    // Use shared technician if all PMs have the same one
+    final techIds = selectedPms.map((s) => s.assignedTo).toSet();
+    if (techIds.length == 1 && techIds.first != null) {
+      queryParams['technicianId'] = techIds.first!;
+    } else {
+      final authState = AuthStateService();
+      if (authState.currentRole == UserRole.caretaker) {
+        queryParams['technicianId'] = authState.currentAppUser!.id;
+      }
+    }
+
+    final uri = Uri(path: '/work-orders/new', queryParameters: queryParams);
+    await context.push(uri.toString());
+    _load();
   }
 
   Widget _buildScheduleCard(PmSchedule s) {
@@ -1029,6 +1113,161 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
         Icon(icon, size: 14, color: Theme.of(context).colorScheme.outline),
         const SizedBox(width: 4),
         Text(label, style: Theme.of(context).textTheme.bodySmall),
+      ],
+    );
+  }
+}
+
+/// Dialog for selecting multiple PM schedules to batch into one work order.
+/// After the first selection, only PMs with the same title and assetId are shown.
+class _BatchPmDialog extends StatefulWidget {
+  final List<PmSchedule> candidates;
+  final Map<String, String> propertyNames;
+  final Map<String, String> assetNames;
+
+  const _BatchPmDialog({
+    required this.candidates,
+    required this.propertyNames,
+    required this.assetNames,
+  });
+
+  @override
+  State<_BatchPmDialog> createState() => _BatchPmDialogState();
+}
+
+class _BatchPmDialogState extends State<_BatchPmDialog> {
+  final Set<String> _selected = {};
+  String? _lockedTitle;
+  String? _lockedAssetId;
+
+  List<PmSchedule> get _visible {
+    if (_lockedTitle == null) return widget.candidates;
+    return widget.candidates
+        .where(
+          (s) => s.title == _lockedTitle && s.assetId == _lockedAssetId,
+        )
+        .toList();
+  }
+
+  void _toggle(PmSchedule s) {
+    setState(() {
+      if (_selected.contains(s.id)) {
+        _selected.remove(s.id);
+        if (_selected.isEmpty) {
+          _lockedTitle = null;
+          _lockedAssetId = null;
+        }
+      } else {
+        if (_selected.isEmpty) {
+          _lockedTitle = s.title;
+          _lockedAssetId = s.assetId;
+        }
+        _selected.add(s.id);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = _visible;
+    final theme = Theme.of(context);
+
+    return AlertDialog(
+      title: const Text('สร้างใบงานรวมจาก PM'),
+      content: SizedBox(
+        width: 480,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_lockedTitle != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Chip(
+                  avatar: const Icon(Icons.filter_alt, size: 16),
+                  label: Text(
+                    'กรอง: $_lockedTitle${_lockedAssetId != null ? " · ${widget.assetNames[_lockedAssetId] ?? _lockedAssetId}" : ""}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'เลือก PM แรกเพื่อกรองงานชื่อเดียวกัน',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
+                ),
+              ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 400),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: visible.length,
+                itemBuilder: (ctx, i) {
+                  final s = visible[i];
+                  final propName =
+                      s.propertyName ?? widget.propertyNames[s.propertyId] ?? s.propertyId;
+                  final assetName =
+                      s.assetId != null ? (widget.assetNames[s.assetId!] ?? s.assetId) : null;
+                  final d = s.nextDueDate;
+                  final daysUntilDue = d.difference(DateTime.now()).inDays;
+                  final isOverdue = daysUntilDue < 0;
+                  final dueDateColor = isOverdue
+                      ? Colors.red
+                      : daysUntilDue <= 7
+                      ? Colors.orange
+                      : theme.colorScheme.outline;
+
+                  return CheckboxListTile(
+                    dense: true,
+                    value: _selected.contains(s.id),
+                    onChanged: (_) => _toggle(s),
+                    title: Text(propName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(s.title),
+                        if (assetName != null)
+                          Text(
+                            assetName,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.outline,
+                            ),
+                          ),
+                        Text(
+                          isOverdue
+                              ? 'เกินกำหนด ${-daysUntilDue} วัน (${d.day}/${d.month}/${d.year})'
+                              : 'ครบกำหนด: ${d.day}/${d.month}/${d.year}',
+                          style: theme.textTheme.bodySmall?.copyWith(color: dueDateColor),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('ยกเลิก'),
+        ),
+        FilledButton.icon(
+          onPressed: _selected.isEmpty
+              ? null
+              : () => Navigator.pop(context, Set<String>.from(_selected)),
+          icon: const Icon(Icons.assignment_add),
+          label: Text(
+            _selected.isEmpty
+                ? 'สร้างใบงาน'
+                : 'สร้างใบงาน (${_selected.length} บ้าน)',
+          ),
+        ),
       ],
     );
   }

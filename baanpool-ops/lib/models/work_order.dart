@@ -20,6 +20,7 @@ class WorkOrder {
   final List<String> ccUserIds;
   final List<String> additionalPropertyIds;
   final String? pmScheduleId;
+  final List<String> pmScheduleIds;
   final DateTime createdAt;
 
   const WorkOrder({
@@ -41,6 +42,7 @@ class WorkOrder {
     this.ccUserIds = const [],
     this.additionalPropertyIds = const [],
     this.pmScheduleId,
+    this.pmScheduleIds = const [],
     required this.createdAt,
   });
 
@@ -89,6 +91,11 @@ class WorkOrder {
               .toList() ??
           [],
       pmScheduleId: json['pm_schedule_id'] as String?,
+      pmScheduleIds:
+          (json['pm_schedule_ids'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
       createdAt: parseServerTimestampToThai(json['created_at'] as String),
     );
   }

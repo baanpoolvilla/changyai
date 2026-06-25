@@ -15,6 +15,8 @@ class WorkOrderFormScreen extends StatefulWidget {
   final String? prefillAssetId;
   final String? prefillPriority;
   final String? prefillPmScheduleId;
+  final List<String>? prefillPmScheduleIds;
+  final List<String>? prefillAdditionalPropertyIds;
 
   const WorkOrderFormScreen({
     super.key,
@@ -25,6 +27,8 @@ class WorkOrderFormScreen extends StatefulWidget {
     this.prefillAssetId,
     this.prefillPriority,
     this.prefillPmScheduleId,
+    this.prefillPmScheduleIds,
+    this.prefillAdditionalPropertyIds,
   });
 
   @override
@@ -62,7 +66,10 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
       _descriptionController.text = widget.prefillDescription!;
     }
     if (widget.prefillPropertyId != null) {
-      _selectedPropertyIds = [widget.prefillPropertyId!];
+      _selectedPropertyIds = [
+        widget.prefillPropertyId!,
+        ...?widget.prefillAdditionalPropertyIds,
+      ];
     }
     if (widget.prefillTechnicianId != null) {
       _selectedTechnicianId = widget.prefillTechnicianId;
@@ -157,6 +164,9 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
         if (widget.prefillAssetId != null) 'asset_id': widget.prefillAssetId,
         if (widget.prefillPmScheduleId != null)
           'pm_schedule_id': widget.prefillPmScheduleId,
+        if (widget.prefillPmScheduleIds != null &&
+            widget.prefillPmScheduleIds!.isNotEmpty)
+          'pm_schedule_ids': widget.prefillPmScheduleIds,
         if (photoUrls.isNotEmpty) 'photo_urls': photoUrls,
         // บ้านเพิ่มเติม (ถ้าเลือกมากกว่า 1)
         if (_selectedPropertyIds.length > 1)
