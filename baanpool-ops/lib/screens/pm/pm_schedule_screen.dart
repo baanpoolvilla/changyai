@@ -767,8 +767,8 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
   }
 
   Future<void> _showBatchWorkOrderDialog() async {
-    // Candidates: visible PMs that don't already have a pending work order
-    final candidates = _filteredSchedules
+    // Use ALL schedules as candidates so the dialog can filter by group internally
+    final candidates = _schedules
         .where((s) => !_pendingWorkOrderIds.containsKey(s.id))
         .toList();
 
@@ -787,6 +787,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
         candidates: candidates,
         propertyNames: _propertyNames,
         assetNames: _assetNames,
+        initialGroup: _selectedPropertyGroup,
       ),
     );
 
@@ -795,10 +796,15 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     final selectedPms = candidates.where((s) => selected.contains(s.id)).toList();
     final first = selectedPms.first;
 
-    // Build description listing all houses
-    final houseLines = selectedPms.map((s) {
-      final name =
-          s.propertyName ?? _propertyNames[s.propertyId] ?? s.propertyId;
+    // Build description listing all houses sorted by property name
+    final sortedPms = [...selectedPms]
+      ..sort((a, b) {
+        final na = a.propertyName ?? _propertyNames[a.propertyId] ?? a.propertyId;
+        final nb = b.propertyName ?? _propertyNames[b.propertyId] ?? b.propertyId;
+        return na.compareTo(nb);
+      });
+    final houseLines = sortedPms.map((s) {
+      final name = s.propertyName ?? _propertyNames[s.propertyId] ?? s.propertyId;
       final d = s.nextDueDate;
       return '- $name (ครบกำหนด: ${d.day}/${d.month}/${d.year})';
     }).join('\n');
@@ -807,17 +813,16 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
         '\nความถี่: ${first.frequency.displayName}'
         '${first.description != null ? "\nรายละเอียด: ${first.description}" : ""}';
 
-    // Primary property = first selected, additional = the rest
-    final additionalPropertyIds = selectedPms.skip(1).map((s) => s.propertyId).toList();
+    // Primary property = first sorted PM, additional = the rest
+    final additionalPropertyIds = sortedPms.skip(1).map((s) => s.propertyId).toList();
 
     final queryParams = <String, String>{
       'title': first.title,
-      'propertyId': first.propertyId,
+      'propertyId': sortedPms.first.propertyId,
       'description': description,
       'pmScheduleIds': selected.join(','),
       if (additionalPropertyIds.isNotEmpty)
         'additionalPropertyIds': additionalPropertyIds.join(','),
-      if (first.assetId != null) 'assetId': first.assetId!,
     };
 
     // Use shared technician if all PMs have the same one
@@ -1119,16 +1124,18 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
 }
 
 /// Dialog for selecting multiple PM schedules to batch into one work order.
-/// After the first selection, only PMs with the same title and assetId are shown.
+/// After the first selection, only PMs with the same title and asset NAME are shown.
 class _BatchPmDialog extends StatefulWidget {
   final List<PmSchedule> candidates;
   final Map<String, String> propertyNames;
   final Map<String, String> assetNames;
+  final String? initialGroup;
 
   const _BatchPmDialog({
     required this.candidates,
     required this.propertyNames,
     required this.assetNames,
+    this.initialGroup,
   });
 
   @override
@@ -1138,15 +1145,40 @@ class _BatchPmDialog extends StatefulWidget {
 class _BatchPmDialogState extends State<_BatchPmDialog> {
   final Set<String> _selected = {};
   String? _lockedTitle;
-  String? _lockedAssetId;
+  String? _lockedAssetName; // compare by name, not ID (each house has its own asset ID)
+  String? _selectedGroup;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedGroup = widget.initialGroup;
+  }
+
+  String? _assetName(PmSchedule s) =>
+      s.assetName ?? (s.assetId != null ? widget.assetNames[s.assetId!] : null);
+
+  String _propertyGroup(String name) {
+    final m = RegExp(r'^([A-Za-z]+-[A-Za-z]+)').firstMatch(name);
+    if (m != null) return m.group(1)!.toUpperCase();
+    final fb = RegExp(r'^(.+?)\d+$').firstMatch(name);
+    if (fb != null) return fb.group(1)!.toUpperCase();
+    return name.toUpperCase();
+  }
 
   List<PmSchedule> get _visible {
-    if (_lockedTitle == null) return widget.candidates;
-    return widget.candidates
-        .where(
-          (s) => s.title == _lockedTitle && s.assetId == _lockedAssetId,
-        )
-        .toList();
+    return widget.candidates.where((s) {
+      // Group filter
+      if (_selectedGroup != null) {
+        final name = s.propertyName ?? widget.propertyNames[s.propertyId];
+        if (name == null || _propertyGroup(name) != _selectedGroup) return false;
+      }
+      // Lock: same title + same asset name after first selection
+      if (_lockedTitle != null) {
+        if (s.title != _lockedTitle) return false;
+        if (_assetName(s) != _lockedAssetName) return false;
+      }
+      return true;
+    }).toList();
   }
 
   void _toggle(PmSchedule s) {
@@ -1155,12 +1187,12 @@ class _BatchPmDialogState extends State<_BatchPmDialog> {
         _selected.remove(s.id);
         if (_selected.isEmpty) {
           _lockedTitle = null;
-          _lockedAssetId = null;
+          _lockedAssetName = null;
         }
       } else {
         if (_selected.isEmpty) {
           _lockedTitle = s.title;
-          _lockedAssetId = s.assetId;
+          _lockedAssetName = _assetName(s);
         }
         _selected.add(s.id);
       }
@@ -1172,82 +1204,141 @@ class _BatchPmDialogState extends State<_BatchPmDialog> {
     final visible = _visible;
     final theme = Theme.of(context);
 
+    final allGroups = widget.candidates
+        .map((s) {
+          final n = s.propertyName ?? widget.propertyNames[s.propertyId] ?? '';
+          return _propertyGroup(n);
+        })
+        .toSet()
+        .toList()
+      ..sort();
+
     return AlertDialog(
       title: const Text('สร้างใบงานรวมจาก PM'),
       content: SizedBox(
-        width: 480,
+        width: 500,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Property group filter chips
+            if (allGroups.length > 1) ...[
+              SizedBox(
+                height: 40,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: FilterChip(
+                        label: const Text('ทั้งหมด'),
+                        selected: _selectedGroup == null,
+                        onSelected: (_) => setState(() => _selectedGroup = null),
+                      ),
+                    ),
+                    ...allGroups.map(
+                      (g) => Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: FilterChip(
+                          label: Text(g),
+                          selected: _selectedGroup == g,
+                          onSelected: (_) => setState(
+                            () => _selectedGroup = _selectedGroup == g ? null : g,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+            ],
+            // Lock indicator or hint
             if (_lockedTitle != null)
               Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: 6),
                 child: Chip(
-                  avatar: const Icon(Icons.filter_alt, size: 16),
+                  avatar: const Icon(Icons.lock, size: 14),
                   label: Text(
-                    'กรอง: $_lockedTitle${_lockedAssetId != null ? " · ${widget.assetNames[_lockedAssetId] ?? _lockedAssetId}" : ""}',
+                    '${_lockedTitle!}${_lockedAssetName != null ? " · $_lockedAssetName" : ""}',
                     style: const TextStyle(fontSize: 12),
                   ),
                 ),
               )
             else
               Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: 6),
                 child: Text(
-                  'เลือก PM แรกเพื่อกรองงานชื่อเดียวกัน',
+                  'เลือก PM แรกเพื่อกรองงานชื่อและอุปกรณ์เดียวกัน',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.outline,
                   ),
                 ),
               ),
+            // PM list
             ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 400),
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: visible.length,
-                itemBuilder: (ctx, i) {
-                  final s = visible[i];
-                  final propName =
-                      s.propertyName ?? widget.propertyNames[s.propertyId] ?? s.propertyId;
-                  final assetName =
-                      s.assetId != null ? (widget.assetNames[s.assetId!] ?? s.assetId) : null;
-                  final d = s.nextDueDate;
-                  final daysUntilDue = d.difference(DateTime.now()).inDays;
-                  final isOverdue = daysUntilDue < 0;
-                  final dueDateColor = isOverdue
-                      ? Colors.red
-                      : daysUntilDue <= 7
-                      ? Colors.orange
-                      : theme.colorScheme.outline;
-
-                  return CheckboxListTile(
-                    dense: true,
-                    value: _selected.contains(s.id),
-                    onChanged: (_) => _toggle(s),
-                    title: Text(propName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(s.title),
-                        if (assetName != null)
-                          Text(
-                            assetName,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.outline,
-                            ),
+              constraints: const BoxConstraints(maxHeight: 380),
+              child: visible.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'ไม่มี PM ในกลุ่มนี้',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
                           ),
-                        Text(
-                          isOverdue
-                              ? 'เกินกำหนด ${-daysUntilDue} วัน (${d.day}/${d.month}/${d.year})'
-                              : 'ครบกำหนด: ${d.day}/${d.month}/${d.year}',
-                          style: theme.textTheme.bodySmall?.copyWith(color: dueDateColor),
                         ),
-                      ],
+                      ),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: visible.length,
+                      itemBuilder: (ctx, i) {
+                        final s = visible[i];
+                        final propName =
+                            s.propertyName ?? widget.propertyNames[s.propertyId] ?? s.propertyId;
+                        final asset = _assetName(s);
+                        final d = s.nextDueDate;
+                        final daysUntilDue = d.difference(DateTime.now()).inDays;
+                        final isOverdue = daysUntilDue < 0;
+                        final dueDateColor = isOverdue
+                            ? Colors.red
+                            : daysUntilDue <= 7
+                            ? Colors.orange
+                            : theme.colorScheme.outline;
+
+                        return CheckboxListTile(
+                          dense: true,
+                          value: _selected.contains(s.id),
+                          onChanged: (_) => _toggle(s),
+                          title: Text(
+                            propName,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(s.title),
+                              if (asset != null)
+                                Text(
+                                  asset,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.outline,
+                                  ),
+                                ),
+                              Text(
+                                isOverdue
+                                    ? 'เกินกำหนด ${-daysUntilDue} วัน (${d.day}/${d.month}/${d.year})'
+                                    : 'ครบกำหนด: ${d.day}/${d.month}/${d.year}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: dueDateColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
             ),
           ],
         ),
