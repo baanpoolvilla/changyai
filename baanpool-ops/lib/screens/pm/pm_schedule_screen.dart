@@ -1221,37 +1221,25 @@ class _BatchPmDialogState extends State<_BatchPmDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Property group filter chips
+            // Property group dropdown
             if (allGroups.length > 1) ...[
-              SizedBox(
-                height: 40,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: FilterChip(
-                        label: const Text('ทั้งหมด'),
-                        selected: _selectedGroup == null,
-                        onSelected: (_) => setState(() => _selectedGroup = null),
-                      ),
-                    ),
-                    ...allGroups.map(
-                      (g) => Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: FilterChip(
-                          label: Text(g),
-                          selected: _selectedGroup == g,
-                          onSelected: (_) => setState(
-                            () => _selectedGroup = _selectedGroup == g ? null : g,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+              DropdownButtonFormField<String?>(
+                value: _selectedGroup,
+                decoration: const InputDecoration(
+                  labelText: 'หมวดบ้าน',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 ),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('ทั้งหมด')),
+                  ...allGroups.map(
+                    (g) => DropdownMenuItem(value: g, child: Text(g)),
+                  ),
+                ],
+                onChanged: (v) => setState(() => _selectedGroup = v),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
             ],
             // Lock indicator or hint
             if (_lockedTitle != null)
