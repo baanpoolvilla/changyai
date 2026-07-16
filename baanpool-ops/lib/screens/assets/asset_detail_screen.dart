@@ -9,6 +9,7 @@ import '../../models/user.dart';
 import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/notification_service.dart';
+import '../../utils/error_message.dart';
 
 class AssetDetailScreen extends StatefulWidget {
   final String assetId;
@@ -49,7 +50,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _loading = false);
@@ -93,7 +94,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('ลบล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('ลบล้มเหลว: ${friendlyError(e)}')));
       }
     }
   }
@@ -222,7 +223,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('แก้ไขล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('แก้ไขล้มเหลว: ${friendlyError(e)}')));
       }
     }
   }
@@ -374,7 +375,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
         'description': descCtrl.text.trim().isEmpty
             ? null
             : descCtrl.text.trim(),
-        'frequency': selectedFreq.name,
+        'frequency': selectedFreq.toDbValue,
         'next_due_date': nextDue.toIso8601String().split('T').first,
         'assigned_to': selectedTechId,
       });
@@ -397,7 +398,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('เพิ่ม PM Schedule ล้มเหลว: $e')),
+          SnackBar(content: Text('เพิ่ม PM Schedule ล้มเหลว: ${friendlyError(e)}')),
         );
       }
     }
@@ -497,7 +498,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('ลบล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('ลบล้มเหลว: ${friendlyError(e)}')));
       }
     }
   }

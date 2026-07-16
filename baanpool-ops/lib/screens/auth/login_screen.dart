@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/line_auth_service.dart';
 import '../../services/auth_state_service.dart';
+import '../../utils/error_message.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -51,7 +52,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('LINE Login ล้มเหลว: $e'),
+            content: Text('LINE Login ล้มเหลว: ${friendlyError(e)}'),
             backgroundColor: Colors.red,
           ),
         );

@@ -6,6 +6,7 @@ import '../../services/supabase_service.dart';
 import '../../services/auth_state_service.dart';
 import '../../utils/thai_datetime.dart';
 import '../../utils/page_wrapper.dart';
+import '../../utils/error_message.dart';
 
 class PurchaseOrdersListScreen extends StatefulWidget {
   const PurchaseOrdersListScreen({super.key});
@@ -74,7 +75,7 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: $e')));
+            .showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _loading = false);

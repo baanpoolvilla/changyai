@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/contractor.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/page_wrapper.dart';
+import '../../utils/error_message.dart';
 
 /// รายชื่อติดต่อ (Contact)
 class ContractorsListScreen extends StatefulWidget {
@@ -41,7 +42,7 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _loading = false);
@@ -243,7 +244,7 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('บันทึกไม่สำเร็จ: $e')),
+                    SnackBar(content: Text('บันทึกไม่สำเร็จ: ${friendlyError(e)}')),
                   );
                 }
               }
@@ -286,7 +287,7 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
                 if (mounted) {
                   ScaffoldMessenger.of(
                     context,
-                  ).showSnackBar(SnackBar(content: Text('ลบไม่สำเร็จ: $e')));
+                  ).showSnackBar(SnackBar(content: Text('ลบไม่สำเร็จ: ${friendlyError(e)}')));
                 }
               }
             },

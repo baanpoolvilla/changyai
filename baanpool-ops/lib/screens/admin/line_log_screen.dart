@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../utils/error_message.dart';
 
 class LineLogScreen extends StatefulWidget {
   const LineLogScreen({super.key});
@@ -38,7 +39,7 @@ class _LineLogScreenState extends State<LineLogScreen> {
       });
     } catch (e) {
       setState(() {
-        _error = 'โหลดข้อมูลไม่สำเร็จ: $e';
+        _error = 'โหลดข้อมูลไม่สำเร็จ: ${friendlyError(e)}';
         _loading = false;
       });
     }

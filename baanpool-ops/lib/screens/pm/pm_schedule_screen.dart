@@ -7,6 +7,7 @@ import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/thai_datetime.dart';
 import '../../utils/page_wrapper.dart';
+import '../../utils/error_message.dart';
 
 class PmScheduleScreen extends StatefulWidget {
   final String? initialPropertyId;
@@ -147,7 +148,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _loading = false);
@@ -209,7 +210,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
       }
       return;
     }
@@ -586,7 +587,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('สร้าง PM Schedule ล้มเหลว: $e')),
+          SnackBar(content: Text('สร้าง PM Schedule ล้มเหลว: ${friendlyError(e)}')),
         );
       }
     }
@@ -1072,7 +1073,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('แก้ไข PM ล้มเหลว: $e')),
+          SnackBar(content: Text('แก้ไข PM ล้มเหลว: ${friendlyError(e)}')),
         );
       }
     }

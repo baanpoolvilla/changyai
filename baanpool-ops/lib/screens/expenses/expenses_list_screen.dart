@@ -8,6 +8,7 @@ import '../../services/supabase_service.dart';
 import '../../utils/thai_datetime.dart';
 import '../../utils/page_wrapper.dart';
 import '../../utils/csv_downloader.dart'
+import '../../utils/error_message.dart';
     if (dart.library.html) '../../utils/csv_downloader_web.dart';
 
 class ExpensesListScreen extends StatefulWidget {
@@ -75,7 +76,7 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _loading = false);
@@ -338,7 +339,7 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('ไม่สามารถดาวน์โหลดไฟล์ได้: $e')),
+          SnackBar(content: Text('ไม่สามารถดาวน์โหลดไฟล์ได้: ${friendlyError(e)}')),
         );
       }
     }

@@ -7,6 +7,7 @@ import '../../models/expense.dart';
 import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/thai_datetime.dart';
+import '../../utils/error_message.dart';
 
 class ExpenseFormScreen extends StatefulWidget {
   final String? workOrderId;
@@ -72,7 +73,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _loading = false);
@@ -121,7 +122,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('เลือกรูปภาพล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('เลือกรูปภาพล้มเหลว: ${friendlyError(e)}')));
       }
     }
   }
@@ -229,7 +230,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _saving = false);

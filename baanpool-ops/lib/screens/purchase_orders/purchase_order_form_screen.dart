@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/purchase_order.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/error_message.dart';
 
 class PurchaseOrderFormScreen extends StatefulWidget {
   const PurchaseOrderFormScreen({super.key});
@@ -148,7 +149,7 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('บันทึกล้มเหลว: $e')),
+          SnackBar(content: Text('บันทึกล้มเหลว: ${friendlyError(e)}')),
         );
       }
     }

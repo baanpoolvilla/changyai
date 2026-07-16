@@ -6,6 +6,7 @@ import '../../app/theme.dart';
 import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/page_wrapper.dart';
+import '../../utils/error_message.dart';
 
 /// Dashboard — PR รอ CEO, งานวันนี้, PM ใกล้ครบ, ใบงานล่าสุด
 class DashboardScreen extends StatefulWidget {
@@ -93,7 +94,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _loading = false);

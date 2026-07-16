@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/user.dart';
 import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/error_message.dart';
 
 class WorkOrderFormScreen extends StatefulWidget {
   final String? prefillTitle;
@@ -102,7 +103,7 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _loading = false);
@@ -193,7 +194,7 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('สร้างใบงานล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('สร้างใบงานล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _saving = false);
@@ -253,7 +254,7 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('เลือกรูปภาพล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('เลือกรูปภาพล้มเหลว: ${friendlyError(e)}')));
       }
     }
   }

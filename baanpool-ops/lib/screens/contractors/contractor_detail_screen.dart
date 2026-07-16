@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/contractor.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/error_message.dart';
 
 /// หน้ารายละเอียดช่างภายนอก + ประวัติงาน
 class ContractorDetailScreen extends StatefulWidget {
@@ -41,7 +42,7 @@ class _ContractorDetailScreenState extends State<ContractorDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _loading = false);
@@ -158,7 +159,7 @@ class _ContractorDetailScreenState extends State<ContractorDetailScreen> {
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('บันทึกไม่สำเร็จ: $e')),
+                      SnackBar(content: Text('บันทึกไม่สำเร็จ: ${friendlyError(e)}')),
                     );
                   }
                 }
@@ -617,7 +618,7 @@ class _ContractorDetailScreenState extends State<ContractorDetailScreen> {
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('บันทึกไม่สำเร็จ: $e')),
+                      SnackBar(content: Text('บันทึกไม่สำเร็จ: ${friendlyError(e)}')),
                     );
                   }
                 }

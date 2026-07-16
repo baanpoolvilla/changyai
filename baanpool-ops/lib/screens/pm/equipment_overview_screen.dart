@@ -4,6 +4,7 @@ import '../../models/pm_schedule.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/thai_datetime.dart';
 import '../../utils/page_wrapper.dart';
+import '../../utils/error_message.dart';
 
 /// สรุปอุปกรณ์ทุกหลัง: แอร์ | ฉีดปลวก | สระว่ายน้ำ
 class EquipmentOverviewScreen extends StatefulWidget {
@@ -98,7 +99,7 @@ class _EquipmentOverviewScreenState extends State<EquipmentOverviewScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('โหลดข้อมูลล้มเหลว: $e')),
+          SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')),
         );
       }
     }

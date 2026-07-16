@@ -8,6 +8,7 @@ import '../../models/asset.dart';
 import '../../models/user.dart';
 import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/error_message.dart';
 
 class PropertyDetailScreen extends StatefulWidget {
   final String propertyId;
@@ -54,7 +55,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _loading = false);
@@ -107,7 +108,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('ลบล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('ลบล้มเหลว: ${friendlyError(e)}')));
       }
     }
   }
@@ -259,7 +260,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
       if (mounted) {
         final message = e is PostgrestException && e.code == '42501'
             ? 'เพิ่มอุปกรณ์ไม่สำเร็จ: ฐานข้อมูลยังไม่เปิดสิทธิ์ผู้ดูแลบ้านสำหรับบ้านนี้ กรุณารัน migration ล่าสุด'
-            : 'เพิ่มอุปกรณ์ล้มเหลว: $e';
+            : 'เพิ่มอุปกรณ์ล้มเหลว: ${friendlyError(e)}';
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(message)));

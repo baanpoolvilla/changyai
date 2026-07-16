@@ -7,6 +7,7 @@ import '../../models/user.dart';
 import '../../services/supabase_service.dart';
 import '../../services/auth_state_service.dart';
 import '../../utils/thai_datetime.dart';
+import '../../utils/error_message.dart';
 
 class PurchaseOrderDetailScreen extends StatefulWidget {
   final String orderId;
@@ -70,7 +71,7 @@ class _PurchaseOrderDetailScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('โหลดล้มเหลว: $e')));
+            .showSnackBar(SnackBar(content: Text('โหลดล้มเหลว: ${friendlyError(e)}')));
         setState(() => _loading = false);
       }
     }
@@ -107,7 +108,7 @@ class _PurchaseOrderDetailScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('เพิ่ม comment ล้มเหลว: $e')));
+            .showSnackBar(SnackBar(content: Text('เพิ่ม comment ล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _commentLoading = false);
@@ -124,7 +125,7 @@ class _PurchaseOrderDetailScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('อัพเดตล้มเหลว: $e')));
+            .showSnackBar(SnackBar(content: Text('อัพเดตล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _actionLoading = false);
@@ -211,7 +212,7 @@ class _PurchaseOrderDetailScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('อนุมัติล้มเหลว: $e')));
+            .showSnackBar(SnackBar(content: Text('อนุมัติล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _actionLoading = false);
@@ -308,7 +309,7 @@ class _PurchaseOrderDetailScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('อนุมัติล้มเหลว: $e')));
+            .showSnackBar(SnackBar(content: Text('อนุมัติล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _actionLoading = false);
@@ -432,7 +433,7 @@ class _PurchaseOrderDetailScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: $e')));
+            .showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _actionLoading = false);
@@ -501,7 +502,7 @@ class _PurchaseOrderDetailScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: $e')));
+            .showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _actionLoading = false);
@@ -598,7 +599,7 @@ class _PurchaseOrderDetailScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: $e')));
+            .showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _actionLoading = false);
@@ -812,7 +813,7 @@ class _PurchaseOrderDetailScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('ลบล้มเหลว: $e')));
+            .showSnackBar(SnackBar(content: Text('ลบล้มเหลว: ${friendlyError(e)}')));
         setState(() => _actionLoading = false);
       }
     }

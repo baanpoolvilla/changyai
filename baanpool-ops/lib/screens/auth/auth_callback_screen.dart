@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/line_auth_service.dart';
 import '../../services/auth_state_service.dart';
+import '../../utils/error_message.dart';
 
 /// Auth callback screen — handles redirect from LINE OAuth
 class AuthCallbackScreen extends StatefulWidget {
@@ -46,7 +47,7 @@ class _AuthCallbackScreenState extends State<AuthCallbackScreen> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _error = 'เข้าสู่ระบบไม่สำเร็จ: $e');
+        setState(() => _error = 'เข้าสู่ระบบไม่สำเร็จ: ${friendlyError(e)}');
       }
     }
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/error_message.dart';
 
 /// Screen for creating / editing a property
 class PropertyFormScreen extends StatefulWidget {
@@ -57,7 +58,7 @@ class _PropertyFormScreenState extends State<PropertyFormScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _loading = false);
@@ -90,7 +91,7 @@ class _PropertyFormScreenState extends State<PropertyFormScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _saving = false);

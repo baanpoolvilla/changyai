@@ -9,6 +9,7 @@ import '../../models/work_order_comment.dart';
 import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/thai_datetime.dart';
+import '../../utils/error_message.dart';
 
 class WorkOrderDetailScreen extends StatefulWidget {
   final String workOrderId;
@@ -143,7 +144,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _loading = false);
@@ -185,7 +186,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('อัปเดตล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('อัปเดตล้มเหลว: ${friendlyError(e)}')));
       }
     }
   }
@@ -430,7 +431,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                       } catch (e) {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('เลือกรูปภาพล้มเหลว: $e')),
+                            SnackBar(content: Text('เลือกรูปภาพล้มเหลว: ${friendlyError(e)}')),
                           );
                         }
                       }
@@ -544,7 +545,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('อัปเดตล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('อัปเดตล้มเหลว: ${friendlyError(e)}')));
       }
     }
   }
@@ -572,7 +573,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('เพิ่มความคิดเห็นล้มเหลว: $e')),
+          SnackBar(content: Text('เพิ่มความคิดเห็นล้มเหลว: ${friendlyError(e)}')),
         );
       }
     }
@@ -1188,7 +1189,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('ลบไม่สำเร็จ: $e')),
+                    SnackBar(content: Text('ลบไม่สำเร็จ: ${friendlyError(e)}')),
                   );
                 }
               }

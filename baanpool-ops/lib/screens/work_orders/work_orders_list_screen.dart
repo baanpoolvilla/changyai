@@ -6,6 +6,7 @@ import '../../services/supabase_service.dart';
 import '../../services/auth_state_service.dart';
 import '../../utils/thai_datetime.dart';
 import '../../utils/page_wrapper.dart';
+import '../../utils/error_message.dart';
 
 class WorkOrdersListScreen extends StatefulWidget {
   /// Optional initial filter: 'today' | 'urgent' | 'no-expense' | null
@@ -119,7 +120,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('โหลดข้อมูลล้มเหลว: $e')),
+          SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')),
         );
       }
     }

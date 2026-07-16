@@ -5,6 +5,7 @@ import '../../models/property.dart';
 import '../../services/supabase_service.dart';
 import '../../services/auth_state_service.dart';
 import '../../utils/page_wrapper.dart';
+import '../../utils/error_message.dart';
 
 class PropertiesListScreen extends StatefulWidget {
   const PropertiesListScreen({super.key});
@@ -44,7 +45,7 @@ class _PropertiesListScreenState extends State<PropertiesListScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _loading = false);
@@ -124,7 +125,7 @@ class _PropertiesListScreenState extends State<PropertiesListScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: ${friendlyError(e)}')));
       }
     }
   }

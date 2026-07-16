@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/user.dart';
 import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/error_message.dart';
 
 /// Roles Management Screen — Admin can view all users and change their roles
 class RolesManagementScreen extends StatefulWidget {
@@ -38,7 +39,7 @@ class _RolesManagementScreenState extends State<RolesManagementScreen> {
       });
     } catch (e) {
       setState(() {
-        _error = 'โหลดข้อมูลผู้ใช้ไม่สำเร็จ: $e';
+        _error = 'โหลดข้อมูลผู้ใช้ไม่สำเร็จ: ${friendlyError(e)}';
         _loading = false;
       });
     }
@@ -69,7 +70,7 @@ class _RolesManagementScreenState extends State<RolesManagementScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('เปลี่ยน role ไม่สำเร็จ: $e'),
+            content: Text('เปลี่ยน role ไม่สำเร็จ: ${friendlyError(e)}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -113,7 +114,7 @@ class _RolesManagementScreenState extends State<RolesManagementScreen> {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('เปลี่ยนชื่อไม่สำเร็จ: $e'),
+                      content: Text('เปลี่ยนชื่อไม่สำเร็จ: ${friendlyError(e)}'),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -159,7 +160,7 @@ class _RolesManagementScreenState extends State<RolesManagementScreen> {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('ลบไม่สำเร็จ: $e'),
+                      content: Text('ลบไม่สำเร็จ: ${friendlyError(e)}'),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -335,7 +336,7 @@ class _RolesManagementScreenState extends State<RolesManagementScreen> {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('สร้างผู้ใช้ไม่สำเร็จ: $e'),
+                            content: Text('สร้างผู้ใช้ไม่สำเร็จ: ${friendlyError(e)}'),
                             backgroundColor: Colors.red,
                           ),
                         );

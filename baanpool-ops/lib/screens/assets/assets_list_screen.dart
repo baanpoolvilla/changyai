@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/asset.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/error_message.dart';
 
 class AssetsListScreen extends StatefulWidget {
   const AssetsListScreen({super.key});
@@ -39,7 +40,7 @@ class _AssetsListScreenState extends State<AssetsListScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: $e')));
+        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _loading = false);

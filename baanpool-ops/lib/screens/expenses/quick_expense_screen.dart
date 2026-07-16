@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/error_message.dart';
 
 /// หน้าบันทึกค่าใช้จ่ายเล็กน้อย — ผู้ดูแลบ้านซื้อของเองแล้วบันทึก
 class QuickExpenseScreen extends StatefulWidget {
@@ -108,7 +109,7 @@ class _QuickExpenseScreenState extends State<QuickExpenseScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: $e')));
+            .showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: ${friendlyError(e)}')));
       }
     }
     if (mounted) setState(() => _loading = false);
