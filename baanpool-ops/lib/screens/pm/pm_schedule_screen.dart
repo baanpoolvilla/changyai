@@ -220,6 +220,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     final titleCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     PmFrequency selectedFreq = PmFrequency.month1;
+    int? selectedRounds;
     DateTime nextDue = DateTime.now().add(const Duration(days: 30));
     String? selectedTechId;
     Set<String> selectedPropertyIds = {};
@@ -389,13 +390,18 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                           )
                           .toList(),
                       onChanged: (v) {
-                        if (v != null) setDialogState(() => selectedFreq = v);
+                        if (v != null) {
+                          setDialogState(() {
+                            selectedFreq = v;
+                            selectedRounds = null; // รอบสูงสุดเปลี่ยนตามความถี่
+                          });
+                        }
                       },
                     ),
                     const SizedBox(height: 12),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('วันครบกำหนดถัดไป'),
+                      title: const Text('วันครบกำหนดรอบแรก'),
                       subtitle: Text(
                         '${nextDue.day}/${nextDue.month}/${nextDue.year}',
                       ),
@@ -409,10 +415,49 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                             const Duration(days: 365 * 5),
                           ),
                         );
-                        if (picked != null)
+                        if (picked != null) {
                           setDialogState(() => nextDue = picked);
+                        }
                       },
                     ),
+                    if (selectedFreq.maxRoundsPerYear > 1) ...[
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<int>(
+                        value: selectedRounds,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'ทำกี่รอบต่อปี *',
+                          helperText:
+                              'ครบรอบแล้วเว้นยาว กลับมาเริ่มใหม่วันเดิมปีหน้า',
+                          helperMaxLines: 2,
+                        ),
+                        items: [
+                          for (var i = 1;
+                              i <= selectedFreq.maxRoundsPerYear;
+                              i++)
+                            DropdownMenuItem(
+                              value: i,
+                              child: Text(
+                                i == selectedFreq.maxRoundsPerYear
+                                    ? '$i รอบ (ต่อเนื่อง ไม่เว้น)'
+                                    : '$i รอบ',
+                              ),
+                            ),
+                        ],
+                        onChanged: (v) =>
+                            setDialogState(() => selectedRounds = v),
+                      ),
+                      if (selectedRounds != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: _cyclePreview(
+                            ctx,
+                            anchor: nextDue,
+                            frequency: selectedFreq,
+                            rounds: selectedRounds!,
+                          ),
+                        ),
+                    ],
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String?>(
                       value: selectedTechId,
@@ -538,6 +583,13 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                     );
                     return;
                   }
+                  if (selectedFreq.maxRoundsPerYear > 1 &&
+                      selectedRounds == null) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(content: Text('กรุณาเลือกจำนวนรอบต่อปี')),
+                    );
+                    return;
+                  }
                   Navigator.pop(ctx, true);
                 },
                 child: const Text('สร้าง PM'),
@@ -567,6 +619,9 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
               : descCtrl.text.trim(),
           'frequency': selectedFreq.toDbValue,
           'next_due_date': nextDue.toIso8601String().split('T').first,
+          // anchor = วันกำหนดรอบแรก — ยึดไว้ไม่ให้วันดริฟต์ตามวันจบงาน
+          'anchor_date': nextDue.toIso8601String().split('T').first,
+          'rounds_per_year': selectedRounds,
           'assigned_to': selectedTechId,
         });
       }
@@ -1120,6 +1175,63 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
         const SizedBox(width: 4),
         Text(label, style: Theme.of(context).textTheme.bodySmall),
       ],
+    );
+  }
+
+  /// แสดงตัวอย่างวันที่ของ 1 รอบปี + วันแรกของปีถัดไป
+  /// ใช้ SupabaseService.nextDueSlot ตัวจริง — ที่โชว์จึงตรงกับที่ระบบคำนวณเสมอ
+  Widget _cyclePreview(
+    BuildContext ctx, {
+    required DateTime anchor,
+    required PmFrequency frequency,
+    required int rounds,
+  }) {
+    final dates = <DateTime>[anchor];
+    var cursor = anchor;
+    for (var i = 0; i < rounds; i++) {
+      cursor = SupabaseService.nextDueSlot(
+        anchor: anchor,
+        frequency: frequency,
+        roundsPerYear: rounds,
+        after: cursor,
+      );
+      dates.add(cursor);
+    }
+    final theme = Theme.of(ctx);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'รอบที่จะเกิดขึ้น',
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          for (var i = 0; i < dates.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text(
+                i == dates.length - 1
+                    ? '↻ ${dates[i].day}/${dates[i].month}/${dates[i].year}  (วนกลับรอบแรก ปีถัดไป)'
+                    : '${i + 1}. ${dates[i].day}/${dates[i].month}/${dates[i].year}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: i == dates.length - 1
+                      ? theme.colorScheme.primary
+                      : null,
+                  fontWeight: i == dates.length - 1 ? FontWeight.bold : null,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

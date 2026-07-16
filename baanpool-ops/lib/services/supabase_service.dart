@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/pm_schedule.dart';
 
 /// Service layer for all Supabase operations
 class SupabaseService {
@@ -283,12 +284,11 @@ class SupabaseService {
           .select()
           .eq('id', pmScheduleId)
           .single();
-      final frequency = pm['frequency'] as String? ?? 'monthly';
       final now = DateTime.now();
-      final nextDue = _calcNextDueDate(now, frequency);
+      final nextDue = _advanceFrom(pm, now);
       await _client.from('pm_schedules').update({
         'last_completed_date': now.toIso8601String(),
-        'next_due_date': nextDue.toIso8601String(),
+        'next_due_date': nextDue.toIso8601String().split('T').first,
       }).eq('id', pmScheduleId);
     } catch (_) {}
   }
@@ -359,49 +359,94 @@ class SupabaseService {
 
       final now = DateTime.now();
       for (final s in schedules) {
-        final frequency = s['frequency'] as String? ?? 'monthly';
-        final nextDue = _calcNextDueDate(now, frequency);
+        final nextDue = _advanceFrom(s, now);
         await _client
             .from('pm_schedules')
             .update({
               'last_completed_date': now.toIso8601String(),
-              'next_due_date': nextDue.toIso8601String(),
+              'next_due_date': nextDue.toIso8601String().split('T').first,
             })
             .eq('id', s['id'] as String);
       }
     } catch (_) {}
   }
 
-  /// Calculate next due date based on PM frequency
-  DateTime _calcNextDueDate(DateTime from, String frequency) {
-    // Map DB values to internal enum-style names
-    const legacyMap = {
-      'weekly': 'week1',
-      'biweekly': 'week2',
-      'triweekly': 'week3',
-      'monthly': 'month1',
-      'bimonthly': 'month2',
-      'quarterly': 'month3',
-      'month4': 'month4',
-      'month5': 'month5',
-      'semiannual': 'month6',
-      'month7': 'month7',
-      'month8': 'month8',
-      'month9': 'month9',
-      'month10': 'month10',
-      'month11': 'month11',
-      'annual': 'month12',
-    };
-    final f = legacyMap[frequency] ?? frequency;
-    if (f == 'week1') return from.add(const Duration(days: 7));
-    if (f == 'week2') return from.add(const Duration(days: 14));
-    if (f == 'week3') return from.add(const Duration(days: 21));
-    final monthMatch = RegExp(r'^month(\d+)$').firstMatch(f);
-    if (monthMatch != null) {
-      final months = int.parse(monthMatch.group(1)!);
-      return DateTime(from.year, from.month + months, from.day);
+  /// อ่าน anchor/รอบต่อปี จากแถว pm_schedules แล้วคำนวณวันกำหนดถัดไป
+  /// ถ้ายังไม่มี anchor_date (ข้อมูลเก่าก่อน migration 052) → ใช้ next_due_date แทน
+  static DateTime _advanceFrom(Map<String, dynamic> pm, DateTime completedAt) {
+    final frequency = PmFrequency.fromString(
+      pm['frequency'] as String? ?? 'monthly',
+    );
+    final anchorStr =
+        (pm['anchor_date'] as String?) ?? (pm['next_due_date'] as String);
+    return nextDueSlot(
+      anchor: DateTime.parse(anchorStr),
+      frequency: frequency,
+      roundsPerYear: pm['rounds_per_year'] as int?,
+      after: completedAt,
+    );
+  }
+
+  /// บวกเดือนโดยไม่ให้วันล้นเดือน
+  /// 31/1 + 1 เดือน = 28/2 (ไม่ใช่ 3/3 แบบที่ DateTime ปกติจะเด้งให้)
+  static DateTime _addMonthsClamped(DateTime d, int months) {
+    final total = d.month - 1 + months;
+    final year = d.year + (total ~/ 12);
+    final month = total % 12 + 1;
+    final lastDay = DateTime(year, month + 1, 0).day;
+    return DateTime(year, month, d.day < lastDay ? d.day : lastDay);
+  }
+
+  /// คำนวณวันกำหนดถัดไปของ PM โดย**ยึดวันตั้งต้น (anchor) เป็นหลัก**
+  /// ไม่ใช่นับต่อจากวันจบงาน — วันกำหนดจึงไม่ดริฟต์
+  ///
+  /// [roundsPerYear] = จำนวนรอบต่อปี นับจาก anchor แล้ววนกลับทุก 12 เดือน
+  ///   เช่น anchor 15/9/2026, ทุก 3 เดือน, 3 รอบ/ปี
+  ///     → 15/9/2026, 15/12/2026, 15/3/2027, [เว้น มิ.ย.], 15/9/2027, ...
+  ///   null = ทำต่อเนื่องทุกช่วง ไม่มีการเว้น (15/9, 15/12, 15/3, 15/6, 15/9)
+  ///
+  /// คืนค่าช่องเวลาแรกที่อยู่**หลัง** [after]
+  static DateTime nextDueSlot({
+    required DateTime anchor,
+    required PmFrequency frequency,
+    required int? roundsPerYear,
+    required DateTime after,
+  }) {
+    final a = DateTime(anchor.year, anchor.month, anchor.day);
+    final x = DateTime(after.year, after.month, after.day);
+
+    // ความถี่แบบสัปดาห์ — ทบไปเรื่อยๆ จาก anchor (ไม่มีระบบรอบต่อปี)
+    final days = frequency.weekDays;
+    if (days != null) {
+      var next = a;
+      var guard = 0;
+      while (!next.isAfter(x) && guard++ < 10000) {
+        next = next.add(Duration(days: days));
+      }
+      return next;
     }
-    return DateTime(from.year, from.month + 1, from.day);
+
+    final months = frequency.months ?? 1;
+
+    // แบบต่อเนื่อง: anchor + k×months
+    if (roundsPerYear == null || roundsPerYear <= 0) {
+      var next = a;
+      var k = 0;
+      while (!next.isAfter(x) && k < 10000) {
+        k++;
+        next = _addMonthsClamped(a, months * k);
+      }
+      return next;
+    }
+
+    // แบบมีรอบต่อปี: anchor + (ปีที่ c × 12) + (รอบที่ i × months)
+    for (var c = 0; c < 200; c++) {
+      for (var i = 0; i < roundsPerYear; i++) {
+        final d = _addMonthsClamped(a, c * 12 + i * months);
+        if (d.isAfter(x)) return d;
+      }
+    }
+    return _addMonthsClamped(a, 12);
   }
 
   /// Find the PM schedule ID for an asset (first active schedule)

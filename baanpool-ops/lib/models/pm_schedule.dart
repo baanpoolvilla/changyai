@@ -9,6 +9,10 @@ class PmSchedule {
   final String? description;
   final PmFrequency frequency;
   final DateTime nextDueDate;
+  /// วันตั้งต้นของรอบ — ใช้ยึดไม่ให้วันกำหนดดริฟต์ตามวันจบงาน
+  final DateTime? anchorDate;
+  /// จำนวนรอบต่อปี (นับจาก anchor) — null = ทำต่อเนื่อง ไม่มีการเว้น
+  final int? roundsPerYear;
   final DateTime? lastCompletedDate;
   final bool isActive;
   final String? assignedTo;
@@ -26,6 +30,8 @@ class PmSchedule {
     this.description,
     required this.frequency,
     required this.nextDueDate,
+    this.anchorDate,
+    this.roundsPerYear,
     this.lastCompletedDate,
     this.isActive = true,
     this.assignedTo,
@@ -69,6 +75,10 @@ class PmSchedule {
       description: json['description'] as String?,
       frequency: PmFrequency.fromString(json['frequency'] as String),
       nextDueDate: DateTime.parse(json['next_due_date'] as String),
+      anchorDate: json['anchor_date'] != null
+          ? DateTime.parse(json['anchor_date'] as String)
+          : null,
+      roundsPerYear: json['rounds_per_year'] as int?,
       lastCompletedDate: json['last_completed_date'] != null
           ? DateTime.parse(json['last_completed_date'] as String)
           : null,
@@ -89,6 +99,8 @@ class PmSchedule {
     'description': description,
     'frequency': frequency.toDbValue,
     'next_due_date': nextDueDate.toIso8601String(),
+    'anchor_date': anchorDate?.toIso8601String().split('T').first,
+    'rounds_per_year': roundsPerYear,
     'last_completed_date': lastCompletedDate?.toIso8601String(),
     'is_active': isActive,
     'assigned_to': assignedTo,
@@ -168,6 +180,62 @@ enum PmFrequency {
       case PmFrequency.month12:
         return 'annual';
     }
+  }
+
+  /// จำนวนเดือนของความถี่ — null ถ้าเป็นความถี่แบบสัปดาห์
+  int? get months {
+    switch (this) {
+      case PmFrequency.week1:
+      case PmFrequency.week2:
+      case PmFrequency.week3:
+        return null;
+      case PmFrequency.month1:
+        return 1;
+      case PmFrequency.month2:
+        return 2;
+      case PmFrequency.month3:
+        return 3;
+      case PmFrequency.month4:
+        return 4;
+      case PmFrequency.month5:
+        return 5;
+      case PmFrequency.month6:
+        return 6;
+      case PmFrequency.month7:
+        return 7;
+      case PmFrequency.month8:
+        return 8;
+      case PmFrequency.month9:
+        return 9;
+      case PmFrequency.month10:
+        return 10;
+      case PmFrequency.month11:
+        return 11;
+      case PmFrequency.month12:
+        return 12;
+    }
+  }
+
+  /// จำนวนวันของความถี่แบบสัปดาห์ — null ถ้าเป็นความถี่แบบเดือน
+  int? get weekDays {
+    switch (this) {
+      case PmFrequency.week1:
+        return 7;
+      case PmFrequency.week2:
+        return 14;
+      case PmFrequency.week3:
+        return 21;
+      default:
+        return null;
+    }
+  }
+
+  /// จำนวนรอบต่อปีสูงสุดที่เป็นไปได้ เช่น ทุก 3 เดือน → ได้ไม่เกิน 4 รอบ/ปี
+  /// (ความถี่แบบสัปดาห์ไม่ใช้ระบบรอบต่อปี จึงคืน 0)
+  int get maxRoundsPerYear {
+    final m = months;
+    if (m == null) return 0;
+    return 12 ~/ m;
   }
 
   String get displayName {
