@@ -78,6 +78,10 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
     );
     if (confirm != true) return;
     try {
+      // ลบ PM Schedule ที่ผูกกับอุปกรณ์ก่อน (FK เป็น SET NULL จึงไม่ cascade เอง)
+      for (final s in _schedules) {
+        await _service.deletePmSchedule(s.id);
+      }
       await _service.deleteAsset(widget.assetId);
       if (mounted) {
         ScaffoldMessenger.of(
