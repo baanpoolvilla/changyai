@@ -311,7 +311,8 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
     final titleCtrl = TextEditingController(text: _asset!.name);
     final descCtrl = TextEditingController();
     PmFrequency selectedFreq = PmFrequency.month1;
-    int? selectedRounds;
+    // ตั้งต้น = ทำต่อเนื่องไม่เว้น (พฤติกรรมปกติ) ใครอยากเว้นช่วงค่อยเปลี่ยน
+    int? selectedRounds = PmFrequency.month1.maxRoundsPerYear;
     DateTime nextDue = DateTime.now().add(const Duration(days: 30));
     String? selectedTechId;
 
@@ -365,7 +366,8 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                     if (v != null) {
                       setDialogState(() {
                         selectedFreq = v;
-                        selectedRounds = null; // จำนวนรอบสูงสุดเปลี่ยนตามความถี่
+                        // รอบสูงสุดเปลี่ยนตามความถี่ → รีเซ็ตเป็นต่อเนื่อง
+                        selectedRounds = v.maxRoundsPerYear;
                       });
                     }
                   },
@@ -398,8 +400,9 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                     value: selectedRounds,
                     isExpanded: true,
                     decoration: const InputDecoration(
-                      labelText: 'ทำกี่รอบต่อปี *',
-                      helperText: 'ครบรอบแล้วเว้นยาว กลับมาเริ่มใหม่วันเดิมปีหน้า',
+                      labelText: 'ทำกี่รอบต่อปี',
+                      helperText: 'เลือกน้อยกว่าเต็มปี = ครบรอบแล้วเว้นยาว '
+                          'กลับมาเริ่มใหม่วันเดิมปีหน้า',
                       helperMaxLines: 2,
                     ),
                     items: [
@@ -461,13 +464,6 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                   );
                   return;
                 }
-                if (selectedFreq.maxRoundsPerYear > 1 &&
-                    selectedRounds == null) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(content: Text('กรุณาเลือกจำนวนรอบต่อปี')),
-                  );
-                  return;
-                }
                 Navigator.pop(ctx, true);
               },
               child: const Text('เพิ่ม'),
@@ -490,7 +486,9 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
         'next_due_date': nextDue.toIso8601String().split('T').first,
         // anchor = วันกำหนดรอบแรก — ยึดไว้ไม่ให้วันดริฟต์ตามวันจบงาน
         'anchor_date': nextDue.toIso8601String().split('T').first,
-        'rounds_per_year': selectedRounds,
+        // ความถี่แบบสัปดาห์/ปีละครั้ง ไม่มีระบบรอบต่อปี → เก็บ null (ต่อเนื่อง)
+        'rounds_per_year':
+            selectedFreq.maxRoundsPerYear > 1 ? selectedRounds : null,
         'assigned_to': selectedTechId,
       });
 
