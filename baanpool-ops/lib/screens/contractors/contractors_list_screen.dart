@@ -5,6 +5,7 @@ import '../../models/contractor.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/page_wrapper.dart';
 import '../../utils/error_message.dart';
+import '../../widgets/notification_bell.dart';
 
 /// รายชื่อติดต่อ (Contact)
 class ContractorsListScreen extends StatefulWidget {
@@ -303,7 +304,10 @@ class _ContractorsListScreenState extends State<ContractorsListScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('รายชื่อ Contact')),
+      appBar: AppBar(
+        title: const Text('รายชื่อ Contact'),
+        actions: const [NotificationBell()],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Column(

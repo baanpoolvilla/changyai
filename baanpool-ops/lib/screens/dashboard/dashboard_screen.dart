@@ -7,6 +7,7 @@ import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/page_wrapper.dart';
 import '../../utils/error_message.dart';
+import '../../widgets/notification_bell.dart';
 
 /// Dashboard — PR รอ CEO, งานวันนี้, PM ใกล้ครบ, ใบงานล่าสุด
 class DashboardScreen extends StatefulWidget {
@@ -108,6 +109,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('แดชบอร์ด'),
         actions: [
+          const NotificationBell(),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'ออกจากระบบ',

@@ -7,6 +7,7 @@ import '../../services/auth_state_service.dart';
 import '../../utils/thai_datetime.dart';
 import '../../utils/page_wrapper.dart';
 import '../../utils/error_message.dart';
+import '../../widgets/notification_bell.dart';
 
 class PurchaseOrdersListScreen extends StatefulWidget {
   const PurchaseOrdersListScreen({super.key});
@@ -88,6 +89,7 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('สั่งอุปกรณ์ (PR/PO)'),
+        actions: const [NotificationBell()],
         bottom: !isDesktop
             ? TabBar(
                 controller: _tabController,

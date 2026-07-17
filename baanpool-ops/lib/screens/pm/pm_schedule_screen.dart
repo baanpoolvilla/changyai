@@ -9,6 +9,7 @@ import '../../utils/thai_datetime.dart';
 import '../../utils/page_wrapper.dart';
 import '../../utils/error_message.dart';
 import '../../widgets/cc_picker_field.dart';
+import '../../widgets/notification_bell.dart';
 
 /// สถานะ PM บนแดชบอร์ด — เรียงจากต้องรีบสุดไปปกติ
 /// ทุกสถานะมี icon + ข้อความกำกับเสมอ ไม่ได้สื่อด้วยสีอย่างเดียว
@@ -873,6 +874,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
             tooltip: 'สรุปอุปกรณ์ทุกหลัง',
             onPressed: () => context.push('/equipment-overview'),
           ),
+          const NotificationBell(),
         ],
       ),
       body: _loading

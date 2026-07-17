@@ -10,6 +10,7 @@ import '../../utils/page_wrapper.dart';
 import '../../utils/csv_downloader.dart'
     if (dart.library.html) '../../utils/csv_downloader_web.dart';
 import '../../utils/error_message.dart';
+import '../../widgets/notification_bell.dart';
 
 class ExpensesListScreen extends StatefulWidget {
   const ExpensesListScreen({super.key});
@@ -353,6 +354,7 @@ class _ExpensesListScreenState extends State<ExpensesListScreen> {
       appBar: AppBar(
         title: const Text('ค่าใช้จ่าย'),
         actions: [
+          const NotificationBell(),
           IconButton(
             icon: const Icon(Icons.file_download_outlined),
             tooltip: 'Export รายงาน',

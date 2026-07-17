@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../models/user.dart';
 import '../services/auth_state_service.dart';
-import '../services/notification_service.dart';
 
 /// Shell screen with bottom navigation bar — role-aware
 class ShellScreen extends StatefulWidget {
@@ -16,19 +15,16 @@ class ShellScreen extends StatefulWidget {
 
 class _ShellScreenState extends State<ShellScreen> {
   final _authState = AuthStateService();
-  final _notiService = NotificationService();
 
   @override
   void initState() {
     super.initState();
     _authState.addListener(_onAuthChanged);
-    _notiService.addListener(_onAuthChanged);
   }
 
   @override
   void dispose() {
     _authState.removeListener(_onAuthChanged);
-    _notiService.removeListener(_onAuthChanged);
     super.dispose();
   }
 
@@ -113,16 +109,7 @@ class _ShellScreenState extends State<ShellScreen> {
       );
     }
 
-    // Notifications — visible to everyone
-    items.add(
-      _NavItem(
-        path: '/notifications',
-        icon: Icons.notifications_outlined,
-        selectedIcon: Icons.notifications,
-        label: 'แจ้งเตือน',
-        badgeCount: _notiService.unreadCount,
-      ),
-    );
+    // แจ้งเตือนย้ายไปอยู่บน AppBar แล้ว (NotificationBell) ไม่อยู่ใน nav
 
     // Admin-only: roles management + LINE log (only role=admin, not owner/manager)
     if (_authState.currentRole == UserRole.admin) {
@@ -162,6 +149,12 @@ class _ShellScreenState extends State<ShellScreen> {
     final currentIdx = _currentIndex(context, navItems).clamp(0, navItems.length - 1);
     final isDesktop = MediaQuery.of(context).size.width >= 720;
 
+    // มีเมนูเดียว (เช่น ช่าง เห็นแค่ใบงาน) → เต็มจอ ไม่ต้องมีแถบเมนู
+    // NavigationBar บังคับอย่างน้อย 2 ช่อง ไม่งั้น assert แตกตั้งแต่เข้าแอป
+    if (navItems.length < 2) {
+      return Scaffold(body: widget.child);
+    }
+
     if (isDesktop) {
       final isWide = MediaQuery.of(context).size.width >= 1200;
       return Scaffold(
@@ -187,31 +180,15 @@ class _ShellScreenState extends State<ShellScreen> {
               minWidth: 72,
               minExtendedWidth: 200,
               groupAlignment: -1,
-              destinations: navItems.map((item) {
-                final icon = item.badgeCount > 0
-                    ? Badge(
-                        label: Text(
-                          item.badgeCount > 99 ? '99+' : '${item.badgeCount}',
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                        child: Icon(item.icon),
-                      )
-                    : Icon(item.icon);
-                final selectedIcon = item.badgeCount > 0
-                    ? Badge(
-                        label: Text(
-                          item.badgeCount > 99 ? '99+' : '${item.badgeCount}',
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                        child: Icon(item.selectedIcon),
-                      )
-                    : Icon(item.selectedIcon);
-                return NavigationRailDestination(
-                  icon: icon,
-                  selectedIcon: selectedIcon,
-                  label: Text(item.label),
-                );
-              }).toList(),
+              destinations: navItems
+                  .map(
+                    (item) => NavigationRailDestination(
+                      icon: Icon(item.icon),
+                      selectedIcon: Icon(item.selectedIcon),
+                      label: Text(item.label),
+                    ),
+                  )
+                  .toList(),
             ),
             const VerticalDivider(thickness: 1, width: 1),
             Expanded(child: widget.child),
@@ -220,39 +197,67 @@ class _ShellScreenState extends State<ShellScreen> {
       );
     }
 
-    // Mobile: bottom navigation bar
+    // ─── มือถือ: bottom nav ไม่เกิน 5 ช่อง ที่เหลือเข้า "เพิ่มเติม" ───
+    // Material Design กำหนดไม่เกิน 5 — มากกว่านั้นข้อความจะตัดบรรทัดจนอ่านไม่ออก
+    const maxTabs = 4; // + ช่อง "เพิ่มเติม" = 5
+    final primary = navItems.take(maxTabs).toList();
+    final overflow = navItems.skip(maxTabs).toList();
+    final overflowSelected =
+        currentIdx >= maxTabs; // อยู่ในหน้าที่ซ่อนอยู่ใน "เพิ่มเติม"
+
     return Scaffold(
       body: widget.child,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: currentIdx,
+        selectedIndex: overflowSelected ? primary.length : currentIdx,
         onDestinationSelected: (index) {
+          if (index == primary.length && overflow.isNotEmpty) {
+            _showMoreSheet(overflow);
+            return;
+          }
           context.go(navItems[index].path);
         },
-        destinations: navItems
-            .map(
-              (item) => NavigationDestination(
-                icon: item.badgeCount > 0
-                    ? Badge(
-                        label: Text(
-                          item.badgeCount > 99 ? '99+' : '${item.badgeCount}',
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                        child: Icon(item.icon),
-                      )
-                    : Icon(item.icon),
-                selectedIcon: item.badgeCount > 0
-                    ? Badge(
-                        label: Text(
-                          item.badgeCount > 99 ? '99+' : '${item.badgeCount}',
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                        child: Icon(item.selectedIcon),
-                      )
-                    : Icon(item.selectedIcon),
-                label: item.label,
+        destinations: [
+          for (final item in primary)
+            NavigationDestination(
+              icon: Icon(item.icon),
+              selectedIcon: Icon(item.selectedIcon),
+              label: item.label,
+            ),
+          if (overflow.isNotEmpty)
+            NavigationDestination(
+              icon: const Icon(Icons.more_horiz),
+              selectedIcon: const Icon(Icons.more_horiz),
+              label: 'เพิ่มเติม',
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// เมนูที่เหลือจาก bottom nav — เปิดเป็น bottom sheet
+  Future<void> _showMoreSheet(List<_NavItem> items) async {
+    final location = GoRouterState.of(context).uri.toString();
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final item in items)
+              ListTile(
+                leading: Icon(
+                  location.startsWith(item.path) ? item.selectedIcon : item.icon,
+                ),
+                title: Text(item.label),
+                selected: location.startsWith(item.path),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  context.go(item.path);
+                },
               ),
-            )
-            .toList(),
+          ],
+        ),
       ),
     );
   }
@@ -263,13 +268,11 @@ class _NavItem {
   final IconData icon;
   final IconData selectedIcon;
   final String label;
-  final int badgeCount;
 
   const _NavItem({
     required this.path,
     required this.icon,
     required this.selectedIcon,
     required this.label,
-    this.badgeCount = 0,
   });
 }

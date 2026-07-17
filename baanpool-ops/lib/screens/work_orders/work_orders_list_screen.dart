@@ -7,6 +7,7 @@ import '../../services/auth_state_service.dart';
 import '../../utils/thai_datetime.dart';
 import '../../utils/page_wrapper.dart';
 import '../../utils/error_message.dart';
+import '../../widgets/notification_bell.dart';
 
 class WorkOrdersListScreen extends StatefulWidget {
   /// Optional initial filter: 'today' | 'urgent' | 'no-expense' | null
@@ -217,6 +218,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
               icon: const Icon(Icons.close, size: 16),
               label: const Text('ล้างตัวกรอง'),
             ),
+          const NotificationBell(),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'ออกจากระบบ',
@@ -513,21 +515,24 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
 
     return Card(
       margin: const EdgeInsets.only(bottom: 0),
-      color: isNew ? Colors.red.shade50 : null,
-      shape: isNew
-          ? RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
-            )
-          : null,
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () async {
           await context.push('/work-orders/${wo.id}');
           _load();
         },
-        child: Padding(
-          padding: const EdgeInsets.all(12),
+        child: Container(
+          // แถบสถานะด้านซ้าย — บอกว่ายังไม่ทำโดยไม่ต้องย้อมการ์ดทั้งใบ
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                color: isNew ? Colors.red.shade400 : Colors.transparent,
+                width: 3,
+              ),
+            ),
+          ),
+          padding: const EdgeInsets.fromLTRB(11, 12, 12, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -538,7 +543,6 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
                       wo.title,
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: isNew ? Colors.red.shade800 : null,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,

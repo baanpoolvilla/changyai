@@ -6,6 +6,7 @@ import '../../services/supabase_service.dart';
 import '../../services/auth_state_service.dart';
 import '../../utils/page_wrapper.dart';
 import '../../utils/error_message.dart';
+import '../../widgets/notification_bell.dart';
 
 class PropertiesListScreen extends StatefulWidget {
   const PropertiesListScreen({super.key});
@@ -147,7 +148,10 @@ class _PropertiesListScreenState extends State<PropertiesListScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('รายชื่อบ้าน')),
+      appBar: AppBar(
+        title: const Text('รายชื่อบ้าน'),
+        actions: const [NotificationBell()],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _properties.isEmpty
