@@ -10,6 +10,7 @@ import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/notification_service.dart';
 import '../../utils/error_message.dart';
+import '../../widgets/cc_picker_field.dart';
 
 class AssetDetailScreen extends StatefulWidget {
   final String assetId;
@@ -316,6 +317,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
     int totalRounds = 6; // จำนวนครั้งทั้งหมด (โหมด limitedCount)
     DateTime nextDue = DateTime.now().add(const Duration(days: 30));
     String? selectedTechId;
+    final ccUserIds = <String>{};
 
     // Load technicians
     List<Map<String, dynamic>> technicians = [];
@@ -512,9 +514,18 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                       ),
                     ),
                   ],
-                  onChanged: (v) {
-                    setDialogState(() => selectedTechId = v);
-                  },
+                  onChanged: (v) => setDialogState(() {
+                    selectedTechId = v;
+                    // ผู้รับผิดชอบไม่ต้องอยู่ใน CC จะได้ไม่แจ้งซ้ำ
+                    if (v != null) ccUserIds.remove(v);
+                  }),
+                ),
+                const SizedBox(height: 12),
+                CcPickerField(
+                  allUsers: technicians,
+                  selected: ccUserIds,
+                  excludeUserId: selectedTechId,
+                  onChanged: () => setDialogState(() {}),
                 ),
               ],
             ),
@@ -564,6 +575,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
         'total_rounds':
             selectedMode == PmMode.limitedCount ? totalRounds : null,
         'assigned_to': selectedTechId,
+        'cc_user_ids': ccUserIds.toList(),
       });
 
       // When no technician is assigned, notify the property manager (caretaker)

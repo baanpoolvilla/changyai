@@ -8,6 +8,78 @@ import '../../services/supabase_service.dart';
 import '../../utils/thai_datetime.dart';
 import '../../utils/page_wrapper.dart';
 import '../../utils/error_message.dart';
+import '../../widgets/cc_picker_field.dart';
+
+/// สถานะ PM บนแดชบอร์ด — เรียงจากต้องรีบสุดไปปกติ
+/// ทุกสถานะมี icon + ข้อความกำกับเสมอ ไม่ได้สื่อด้วยสีอย่างเดียว
+enum _PmStatus {
+  overdue,
+  dueSoon,
+  hasWorkOrder,
+  awaitingSchedule,
+  onTrack;
+
+  String get label {
+    switch (this) {
+      case _PmStatus.overdue:
+        return 'เกินกำหนด';
+      case _PmStatus.dueSoon:
+        return 'ใกล้ถึงกำหนด';
+      case _PmStatus.hasWorkOrder:
+        return 'เปิดใบงานแล้ว';
+      case _PmStatus.awaitingSchedule:
+        return 'รอนัดวัน';
+      case _PmStatus.onTrack:
+        return 'ตามกำหนด';
+    }
+  }
+
+  /// คำอธิบายว่าสถานะนี้แปลว่าอะไร กันเข้าใจผิด
+  String get hint {
+    switch (this) {
+      case _PmStatus.overdue:
+        return 'เลยกำหนดแล้วและยังไม่มีใบงาน — ต้องรีบจัดการ';
+      case _PmStatus.dueSoon:
+        return 'ครบกำหนดภายใน 7 วัน';
+      case _PmStatus.hasWorkOrder:
+        return 'มีใบงานรอดำเนินการอยู่แล้ว';
+      case _PmStatus.awaitingSchedule:
+        return 'ทำครั้งล่าสุดเสร็จแล้ว รอนัดวันครั้งถัดไป';
+      case _PmStatus.onTrack:
+        return 'ยังไม่ถึงกำหนด เกิน 7 วันขึ้นไป';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case _PmStatus.overdue:
+        return Icons.error;
+      case _PmStatus.dueSoon:
+        return Icons.warning_amber_rounded;
+      case _PmStatus.hasWorkOrder:
+        return Icons.assignment_turned_in;
+      case _PmStatus.awaitingSchedule:
+        return Icons.event_repeat;
+      case _PmStatus.onTrack:
+        return Icons.check_circle;
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case _PmStatus.overdue:
+        return const Color(0xFFD32F2F); // critical
+      case _PmStatus.dueSoon:
+        return const Color(0xFFE65100); // warning
+      case _PmStatus.hasWorkOrder:
+        return const Color(0xFF1565C0); // info
+      case _PmStatus.awaitingSchedule:
+        return const Color(0xFF6A1B9A); // waiting
+      case _PmStatus.onTrack:
+        return const Color(0xFF2E7D32); // good
+    }
+  }
+}
 
 class PmScheduleScreen extends StatefulWidget {
   final String? initialPropertyId;
@@ -27,8 +99,10 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
   bool _loading = true;
   String? _selectedPropertyGroup; // null = ทุกกลุ่ม
   String? _selectedPropertyId; // null = ทั้งหมด
+  _PmStatus? _selectedStatus; // null = ทุกสถานะ
 
-  List<PmSchedule> get _filteredSchedules {
+  /// PM หลังกรองตามบ้านแล้ว — เป็นฐานของตัวเลขบนแดชบอร์ด
+  List<PmSchedule> get _propertyFiltered {
     if (_selectedPropertyId != null) {
       return _schedules
           .where((s) => s.propertyId == _selectedPropertyId)
@@ -41,6 +115,25 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
       if (propertyName == null) return false;
       return _getPropertyGroup(propertyName) == _selectedPropertyGroup;
     }).toList();
+  }
+
+  /// PM ที่แสดงจริง = กรองบ้าน + กรองสถานะที่กดบนแดชบอร์ด
+  List<PmSchedule> get _filteredSchedules {
+    final base = _propertyFiltered;
+    if (_selectedStatus == null) return base;
+    return base.where((s) => _statusOf(s) == _selectedStatus).toList();
+  }
+
+  /// สถานะของ PM — เรียงตามความสำคัญ ตัวที่ match ก่อนชนะ
+  /// จงใจให้ "เปิดใบงานแล้ว" มาก่อน "เกินกำหนด" เพราะถ้ามีใบงานรออยู่แล้ว
+  /// = มีคนกำลังจัดการ ไม่ใช่งานที่ตกค้างรอคนทำ
+  _PmStatus _statusOf(PmSchedule s) {
+    if (s.awaitingSchedule) return _PmStatus.awaitingSchedule;
+    if (_pendingWorkOrderIds.containsKey(s.id)) return _PmStatus.hasWorkOrder;
+    final days = s.nextDueDate.difference(thaiNow()).inDays;
+    if (days < 0) return _PmStatus.overdue;
+    if (days <= 7) return _PmStatus.dueSoon;
+    return _PmStatus.onTrack;
   }
 
   String _getPropertyGroup(String propertyName) {
@@ -59,6 +152,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
       _selectedPropertyId = null;
     });
   }
+
 
   void _togglePropertyGroup(String group) {
     setState(() {
@@ -225,6 +319,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     int totalRounds = 6; // จำนวนครั้งทั้งหมด (โหมด limitedCount)
     DateTime nextDue = DateTime.now().add(const Duration(days: 30));
     String? selectedTechId;
+    final ccUserIds = <String>{};
     Set<String> selectedPropertyIds = {};
     Set<String> selectedAssetIds = {};
     Map<String, List<Map<String, dynamic>>> propertyAssetsMap = {};
@@ -557,8 +652,19 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                           ),
                         ),
                       ],
-                      onChanged: (v) =>
-                          setDialogState(() => selectedTechId = v),
+                      onChanged: (v) => setDialogState(() {
+                        selectedTechId = v;
+                        // ผู้รับผิดชอบไม่ต้องอยู่ใน CC จะได้ไม่แจ้งซ้ำ
+                        if (v != null) ccUserIds.remove(v);
+                      }),
+                    ),
+                    const SizedBox(height: 12),
+                    // ─── CC (แจ้งสำเนา) ───────────────────────
+                    CcPickerField(
+                      allUsers: technicians,
+                      selected: ccUserIds,
+                      excludeUserId: selectedTechId,
+                      onChanged: () => setDialogState(() {}),
                     ),
                     const SizedBox(height: 16),
                     const Divider(),
@@ -703,6 +809,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
           'total_rounds':
               selectedMode == PmMode.limitedCount ? totalRounds : null,
           'assigned_to': selectedTechId,
+          'cc_user_ids': ccUserIds.toList(),
         });
       }
 
@@ -772,6 +879,8 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
+                // แดชบอร์ด: สรุปตามสถานะ กดเพื่อกรอง
+                _buildStatBar(theme),
                 // Property filter chips
                 if (filterGroups.isNotEmpty)
                   Padding(
@@ -855,12 +964,27 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                Icons.schedule,
+                                _selectedStatus?.icon ?? Icons.schedule,
                                 size: 64,
                                 color: theme.colorScheme.outline,
                               ),
                               const SizedBox(height: 16),
-                              const Text('ยังไม่มี PM Schedule'),
+                              // แยกให้ชัดว่า "ไม่มีเลย" กับ "ไม่มีในตัวกรองนี้" ต่างกัน
+                              Text(
+                                _selectedStatus != null
+                                    ? 'ไม่มี PM ที่${_selectedStatus!.label}'
+                                    : _schedules.isEmpty
+                                    ? 'ยังไม่มี PM Schedule'
+                                    : 'ไม่มี PM ในบ้านที่เลือก',
+                              ),
+                              if (_selectedStatus != null) ...[
+                                const SizedBox(height: 8),
+                                TextButton(
+                                  onPressed: () =>
+                                      setState(() => _selectedStatus = null),
+                                  child: const Text('ดูทั้งหมด'),
+                                ),
+                              ],
                             ],
                           ),
                         )
@@ -1132,6 +1256,107 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                     _chip(Icons.person, s.assignedToName!),
                   if (assetName != null) _chip(Icons.build, assetName),
                 ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// แดชบอร์ด: แถวตัวเลขสรุปตามสถานะ — กดเพื่อกรองรายการด้านล่าง
+  /// นับจาก _propertyFiltered เพื่อให้ตัวเลขทุกช่องยังเห็นครบ
+  /// แม้กำลังกรองสถานะใดสถานะหนึ่งอยู่
+  Widget _buildStatBar(ThemeData theme) {
+    final base = _propertyFiltered;
+    if (base.isEmpty) return const SizedBox.shrink();
+
+    final counts = <_PmStatus, int>{for (final s in _PmStatus.values) s: 0};
+    for (final s in base) {
+      counts[_statusOf(s)] = (counts[_statusOf(s)] ?? 0) + 1;
+    }
+
+    // ซ่อนช่องที่เป็น 0 เพื่อไม่ให้แถวรก ยกเว้นช่องที่กำลังเลือกอยู่
+    final visible = _PmStatus.values
+        .where((s) => counts[s]! > 0 || _selectedStatus == s)
+        .toList();
+    if (visible.isEmpty) return const SizedBox.shrink();
+
+    return SizedBox(
+      height: 92,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+        children: [
+          for (final st in visible)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _statTile(theme, st, counts[st]!),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statTile(ThemeData theme, _PmStatus st, int count) {
+    final selected = _selectedStatus == st;
+    return Tooltip(
+      message: st.hint,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => setState(
+          () => _selectedStatus = selected ? null : st,
+        ),
+        child: Container(
+          width: 132,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: selected
+                ? st.color.withValues(alpha: 0.12)
+                : theme.colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.5,
+                  ),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? st.color : theme.colorScheme.outlineVariant,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                children: [
+                  Icon(st.icon, size: 15, color: st.color),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      st.label,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '$count',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  color: st.color,
+                  fontWeight: FontWeight.bold,
+                  height: 1.1,
+                ),
+              ),
+              Text(
+                'รายการ',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
               ),
             ],
           ),

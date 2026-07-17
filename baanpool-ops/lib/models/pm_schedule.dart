@@ -22,6 +22,8 @@ class PmSchedule {
   final DateTime? lastCompletedDate;
   final bool isActive;
   final String? assignedTo;
+  /// ผู้รับสำเนาแจ้งเตือน — คัดลอกไปที่ใบงานทุกใบที่สร้างจาก PM นี้
+  final List<String> ccUserIds;
   final String? assignedToName; // joined from users table
   final String? createdByName; // joined from users table (creator)
   final String? propertyName; // joined from properties table
@@ -44,6 +46,7 @@ class PmSchedule {
     this.lastCompletedDate,
     this.isActive = true,
     this.assignedTo,
+    this.ccUserIds = const [],
     this.assignedToName,
     this.createdByName,
     this.propertyName,
@@ -96,6 +99,11 @@ class PmSchedule {
           : null,
       isActive: json['is_active'] as bool? ?? true,
       assignedTo: json['assigned_to'] as String?,
+      ccUserIds:
+          (json['cc_user_ids'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
       assignedToName: techName,
       createdByName: creatorName,
       propertyName: propName,
