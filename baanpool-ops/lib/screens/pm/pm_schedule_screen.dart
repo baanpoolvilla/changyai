@@ -220,9 +220,9 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     final titleCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     PmFrequency selectedFreq = PmFrequency.month1;
-    // ตั้งต้น = ทำต่อเนื่องตามความถี่ (ไม่จำกัดรอบ) ใครอยากเว้นค่อยติ๊ก
-    bool limitRounds = false;
-    int? selectedRounds;
+    PmMode selectedMode = PmMode.continuous;
+    int? selectedRounds; // รอบต่อปี (โหมด yearlyRounds)
+    int totalRounds = 6; // จำนวนครั้งทั้งหมด (โหมด limitedCount)
     DateTime nextDue = DateTime.now().add(const Duration(days: 30));
     String? selectedTechId;
     Set<String> selectedPropertyIds = {};
@@ -380,32 +380,78 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                       maxLines: 2,
                     ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<PmFrequency>(
-                      value: selectedFreq,
-                      decoration: const InputDecoration(labelText: 'ความถี่'),
-                      items: PmFrequency.values
+                    // ─── ประเภท PM: เลือกอันเดียว แล้วค่อยโชว์ช่องที่เกี่ยว ───
+                    DropdownButtonFormField<PmMode>(
+                      value: selectedMode,
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: 'ประเภท PM'),
+                      items: PmMode.values
                           .map(
-                            (f) => DropdownMenuItem(
-                              value: f,
-                              child: Text(f.displayName),
+                            (m) => DropdownMenuItem(
+                              value: m,
+                              child: Text(m.displayName),
                             ),
                           )
                           .toList(),
                       onChanged: (v) {
                         if (v != null) {
                           setDialogState(() {
-                            selectedFreq = v;
-                            // รอบสูงสุดเปลี่ยนตามความถี่ → กลับไปโหมดต่อเนื่อง
-                            limitRounds = false;
-                            selectedRounds = null;
+                            selectedMode = v;
+                            selectedRounds = v == PmMode.yearlyRounds
+                                ? selectedFreq.maxRoundsPerYear - 1
+                                : null;
                           });
                         }
                       },
                     ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4, bottom: 4),
+                      child: Text(
+                        selectedMode.description,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(ctx).colorScheme.outline,
+                        ),
+                      ),
+                    ),
+                    // ความถี่ — ไม่ใช้กับแบบจำกัดจำนวนครั้ง (นัดวันเองทีละครั้ง)
+                    if (selectedMode != PmMode.limitedCount) ...[
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<PmFrequency>(
+                        value: selectedFreq,
+                        decoration:
+                            const InputDecoration(labelText: 'ความถี่'),
+                        items: PmFrequency.values
+                            .map(
+                              (f) => DropdownMenuItem(
+                                value: f,
+                                child: Text(f.displayName),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null) {
+                            setDialogState(() {
+                              selectedFreq = v;
+                              // รอบสูงสุดเปลี่ยนตามความถี่ → เลือกใหม่
+                              if (selectedMode == PmMode.yearlyRounds) {
+                                selectedRounds = v.maxRoundsPerYear > 1
+                                    ? v.maxRoundsPerYear - 1
+                                    : 1;
+                              }
+                            });
+                          }
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('วันครบกำหนดรอบแรก'),
+                      title: Text(
+                        selectedMode == PmMode.limitedCount
+                            ? 'นัดวันครั้งแรก'
+                            : 'วันครบกำหนดรอบแรก',
+                      ),
                       subtitle: Text(
                         '${nextDue.day}/${nextDue.month}/${nextDue.year}',
                       ),
@@ -424,29 +470,9 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                         }
                       },
                     ),
-                    if (selectedFreq.maxRoundsPerYear > 1) ...[
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        value: limitRounds,
-                        title: const Text(
-                          'จำกัดจำนวนรอบต่อปี',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        subtitle: Text(
-                          limitRounds
-                              ? 'ครบรอบแล้วเว้นยาว กลับมาเริ่มใหม่วันเดิมปีหน้า'
-                              : 'ตอนนี้: ทำต่อเนื่องทุก ${selectedFreq.displayName} ไม่เว้น',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        onChanged: (v) => setDialogState(() {
-                          limitRounds = v ?? false;
-                          selectedRounds =
-                              selectedFreq.maxRoundsPerYear - 1;
-                        }),
-                      ),
-                      if (limitRounds) ...[
+                    // ─── โหมด: ทำเป็นรอบต่อปี ───
+                    if (selectedMode == PmMode.yearlyRounds) ...[
+                      if (selectedFreq.maxRoundsPerYear > 1) ...[
                         DropdownButtonFormField<int>(
                           value: selectedRounds,
                           isExpanded: true,
@@ -475,7 +501,41 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                               rounds: selectedRounds!,
                             ),
                           ),
-                      ],
+                      ] else
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Text(
+                            selectedFreq.weekDays != null
+                                ? 'ความถี่แบบสัปดาห์ยังไม่รองรับการกำหนดรอบต่อปี '
+                                    '— ระบบจะทำต่อเนื่องให้'
+                                : 'ความถี่ ${selectedFreq.displayName} '
+                                    'ทำปีละครั้งอยู่แล้ว จึงไม่ต้องกำหนดรอบ',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                    ],
+                    // ─── โหมด: จำกัดจำนวนครั้ง ───
+                    if (selectedMode == PmMode.limitedCount) ...[
+                      DropdownButtonFormField<int>(
+                        value: totalRounds,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'ทำทั้งหมดกี่ครั้ง',
+                          helperText: 'จบครั้งหนึ่งแล้วค่อยนัดวันครั้งถัดไป '
+                              'ครบแล้วระบบปิด PM ให้เอง',
+                          helperMaxLines: 2,
+                        ),
+                        items: [
+                          for (var i = 2; i <= 24; i++)
+                            DropdownMenuItem(
+                              value: i,
+                              child: Text('$i ครั้ง'),
+                            ),
+                        ],
+                        onChanged: (v) => setDialogState(
+                          () => totalRounds = v ?? 6,
+                        ),
+                      ),
                     ],
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String?>(
@@ -633,8 +693,15 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
           'next_due_date': nextDue.toIso8601String().split('T').first,
           // anchor = วันกำหนดรอบแรก — ยึดไว้ไม่ให้วันดริฟต์ตามวันจบงาน
           'anchor_date': nextDue.toIso8601String().split('T').first,
-          // null = ทำต่อเนื่องตามความถี่ (ไม่จำกัดรอบ)
-          'rounds_per_year': limitRounds ? selectedRounds : null,
+          // ประเภท PM แยกจากข้อมูล — ต้องมีได้แค่อย่างใดอย่างหนึ่ง (DB มี CHECK คุมอยู่)
+          // ความถี่ที่กำหนดรอบไม่ได้ (สัปดาห์ / 12 เดือน) → null = ต่อเนื่อง
+          // กัน 0 หรือ -1 หลุดไปชน CHECK (rounds_per_year BETWEEN 1 AND 12)
+          'rounds_per_year': selectedMode == PmMode.yearlyRounds &&
+                  selectedFreq.maxRoundsPerYear > 1
+              ? selectedRounds
+              : null,
+          'total_rounds':
+              selectedMode == PmMode.limitedCount ? totalRounds : null,
           'assigned_to': selectedTechId,
         });
       }
@@ -918,7 +985,11 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
 
     Color statusColor = theme.colorScheme.primary;
     String statusText = 'อีก $daysUntilDue วัน';
-    if (isOverdue) {
+    if (s.awaitingSchedule) {
+      // ยังไม่มีวันกำหนด — วันในฐานข้อมูลเป็นของครั้งที่แล้ว นับวันไม่ได้
+      statusColor = Colors.blue;
+      statusText = 'รอนัดวัน';
+    } else if (isOverdue) {
       statusColor = Colors.red;
       statusText = 'เกินกำหนด ${-daysUntilDue} วัน';
     } else if (isDueSoon) {
@@ -1018,7 +1089,18 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                   ),
                 ],
               ),
-              if (s.isDueSoon || isOverdue) ...[
+              // รอนัดวันครั้งถัดไป (PM แบบจำกัดจำนวนครั้ง) — ยังไม่มีวันกำหนด
+              if (s.awaitingSchedule) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => _scheduleNextVisit(s),
+                    icon: const Icon(Icons.event_available, size: 18),
+                    label: Text('นัดวันครั้งที่ ${s.roundsDone + 1}'),
+                  ),
+                ),
+              ] else if (s.isDueSoon || isOverdue) ...[
                 const SizedBox(height: 8),
                 _buildWorkOrderButton(s, statusColor),
               ],
@@ -1030,11 +1112,19 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
               Wrap(
                 spacing: 16,
                 children: [
-                  _chip(Icons.repeat, s.frequency.displayName),
-                  _chip(
-                    Icons.calendar_today,
-                    formatThaiDate(s.nextDueDate),
-                  ),
+                  // แบบจำกัดจำนวนครั้งไม่มีความถี่ → โชว์ความคืบหน้าแทน
+                  if (s.mode == PmMode.limitedCount)
+                    _chip(
+                      Icons.pin,
+                      'ครั้งที่ ${s.roundsDone}/${s.totalRounds}',
+                    )
+                  else
+                    _chip(Icons.repeat, s.frequency.displayName),
+                  if (!s.awaitingSchedule)
+                    _chip(
+                      Icons.calendar_today,
+                      formatThaiDate(s.nextDueDate),
+                    ),
                   _chip(Icons.schedule, 'สร้างเมื่อ ${formatThaiDateTime(s.createdAt)}'),
                   if (s.createdByName != null)
                     _chip(Icons.person_add_alt_1, 'สร้างโดย ${s.createdByName!}'),
@@ -1048,6 +1138,38 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
         ),
       ),
     );
+  }
+
+  /// นัดวันครั้งถัดไปของ PM แบบจำกัดจำนวนครั้ง (เช่น ฉีดปลวก)
+  Future<void> _scheduleNextVisit(PmSchedule s) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(const Duration(days: 30)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
+      helpText: 'นัดวันครั้งที่ ${s.roundsDone + 1} จาก ${s.totalRounds}',
+    );
+    if (picked == null) return;
+    try {
+      await _service.schedulePmNextVisit(s.id, picked);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'นัดครั้งที่ ${s.roundsDone + 1} วันที่ ${formatThaiDate(picked)} แล้ว',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('นัดวันไม่สำเร็จ: ${friendlyError(e)}')),
+        );
+      }
+    }
   }
 
   Future<void> _showEditPmDialog(PmSchedule s) async {

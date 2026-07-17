@@ -13,6 +13,12 @@ class PmSchedule {
   final DateTime? anchorDate;
   /// จำนวนรอบต่อปี (นับจาก anchor) — null = ทำต่อเนื่อง ไม่มีการเว้น
   final int? roundsPerYear;
+  /// จำนวนครั้งทั้งหมดที่ต้องทำ เช่น ฉีดปลวก 6 ครั้ง — null = ทำไม่จำกัด
+  final int? totalRounds;
+  /// ทำไปแล้วกี่ครั้ง (ใช้คู่กับ totalRounds)
+  final int roundsDone;
+  /// true = จบครั้งล่าสุดแล้ว รอคนนัดวันครั้งถัดไป
+  final bool awaitingSchedule;
   final DateTime? lastCompletedDate;
   final bool isActive;
   final String? assignedTo;
@@ -32,6 +38,9 @@ class PmSchedule {
     required this.nextDueDate,
     this.anchorDate,
     this.roundsPerYear,
+    this.totalRounds,
+    this.roundsDone = 0,
+    this.awaitingSchedule = false,
     this.lastCompletedDate,
     this.isActive = true,
     this.assignedTo,
@@ -79,6 +88,9 @@ class PmSchedule {
           ? DateTime.parse(json['anchor_date'] as String)
           : null,
       roundsPerYear: json['rounds_per_year'] as int?,
+      totalRounds: json['total_rounds'] as int?,
+      roundsDone: json['rounds_done'] as int? ?? 0,
+      awaitingSchedule: json['awaiting_schedule'] as bool? ?? false,
       lastCompletedDate: json['last_completed_date'] != null
           ? DateTime.parse(json['last_completed_date'] as String)
           : null,
@@ -108,6 +120,51 @@ class PmSchedule {
 
   bool get isDueSoon =>
       nextDueDate.difference(thaiNow()).inDays <= 7 && isActive;
+
+  /// ประเภทของ PM — แยกจากข้อมูล ไม่ได้เก็บเป็นคอลัมน์แยก
+  PmMode get mode {
+    if (totalRounds != null) return PmMode.limitedCount;
+    if (roundsPerYear != null) return PmMode.yearlyRounds;
+    return PmMode.continuous;
+  }
+
+  /// เหลืออีกกี่ครั้ง (เฉพาะแบบจำกัดจำนวนครั้ง)
+  int? get roundsLeft =>
+      totalRounds == null ? null : (totalRounds! - roundsDone);
+}
+
+/// ประเภทการทำซ้ำของ PM
+enum PmMode {
+  /// ทำทุก N เดือน/สัปดาห์ ไปเรื่อยๆ ไม่มีวันจบ
+  continuous,
+
+  /// ทำ N รอบต่อปีแล้วเว้นยาว วนกลับวันเดิมปีถัดไป (เช่น ล้างแอร์)
+  yearlyRounds,
+
+  /// ทำทั้งหมด N ครั้งแล้วจบ ไม่มีความถี่ นัดวันทีละครั้ง (เช่น ฉีดปลวก)
+  limitedCount;
+
+  String get displayName {
+    switch (this) {
+      case PmMode.continuous:
+        return 'ทำต่อเนื่อง';
+      case PmMode.yearlyRounds:
+        return 'ทำเป็นรอบต่อปี';
+      case PmMode.limitedCount:
+        return 'จำกัดจำนวนครั้ง';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case PmMode.continuous:
+        return 'ทำซ้ำตามความถี่ไปเรื่อยๆ ไม่มีวันจบ';
+      case PmMode.yearlyRounds:
+        return 'ทำครบรอบแล้วเว้นยาว กลับมาเริ่มใหม่วันเดิมปีหน้า';
+      case PmMode.limitedCount:
+        return 'ทำครบจำนวนครั้งแล้วจบ นัดวันเองทีละครั้ง';
+    }
+  }
 }
 
 enum PmFrequency {

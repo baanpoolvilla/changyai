@@ -285,6 +285,23 @@ class SupabaseService {
           .eq('id', pmScheduleId)
           .single();
       final now = DateTime.now();
+
+      // แบบจำกัดจำนวนครั้ง (เช่น ฉีดปลวก 6 ครั้ง) — ไม่มีความถี่
+      // จบครั้งหนึ่ง → รอคนนัดวันครั้งถัดไป / ครบแล้ว → ปิด PM
+      final totalRounds = pm['total_rounds'] as int?;
+      if (totalRounds != null) {
+        final done = (pm['rounds_done'] as int? ?? 0) + 1;
+        final finished = done >= totalRounds;
+        await _client.from('pm_schedules').update({
+          'last_completed_date': now.toIso8601String(),
+          'rounds_done': done,
+          'awaiting_schedule': !finished, // ครบแล้วไม่ต้องรอนัดอีก
+          'is_active': !finished,
+        }).eq('id', pmScheduleId);
+        if (finished) await _notifyPmContractComplete(pm, done);
+        return;
+      }
+
       final nextDue = _advanceFrom(pm, now);
       await _client.from('pm_schedules').update({
         'last_completed_date': now.toIso8601String(),
@@ -348,26 +365,53 @@ class SupabaseService {
     }
   }
 
-  /// Complete PM schedules for an asset — update last_completed_date and advance next_due_date
+  /// Complete PM schedules for an asset
+  /// ใช้ตรรกะเดียวกับ completePmScheduleById เพื่อให้ PM แบบจำกัดจำนวนครั้ง
+  /// ถูกนับครั้ง/ปิดสัญญาถูกต้อง ไม่ใช่แค่เลื่อนวัน
   Future<void> completePmSchedulesForAsset(String assetId) async {
     try {
       final schedules = await _client
           .from('pm_schedules')
-          .select()
+          .select('id')
           .eq('asset_id', assetId)
           .eq('is_active', true);
 
-      final now = DateTime.now();
       for (final s in schedules) {
-        final nextDue = _advanceFrom(s, now);
-        await _client
-            .from('pm_schedules')
-            .update({
-              'last_completed_date': now.toIso8601String(),
-              'next_due_date': nextDue.toIso8601String().split('T').first,
-            })
-            .eq('id', s['id'] as String);
+        await completePmScheduleById(s['id'] as String);
       }
+    } catch (_) {}
+  }
+
+  /// นัดวันครั้งถัดไปของ PM แบบจำกัดจำนวนครั้ง (ปลดสถานะ "รอนัดวัน")
+  Future<void> schedulePmNextVisit(String pmScheduleId, DateTime date) async {
+    await _client.from('pm_schedules').update({
+      'next_due_date': date.toIso8601String().split('T').first,
+      'awaiting_schedule': false,
+    }).eq('id', pmScheduleId);
+  }
+
+  /// แจ้งผู้ดูแลบ้านว่า PM แบบจำกัดจำนวนครั้งทำครบแล้ว (ปิด PM ไปแล้ว)
+  Future<void> _notifyPmContractComplete(
+    Map<String, dynamic> pm,
+    int done,
+  ) async {
+    try {
+      final propertyId = pm['property_id'] as String?;
+      if (propertyId == null) return;
+      final prop = await getProperty(propertyId);
+      final caretakerId = prop['caretaker_id'] as String?;
+      if (caretakerId == null || caretakerId.isEmpty) return;
+
+      await _client.from('notifications').insert({
+        'user_id': caretakerId,
+        'title': '✅ PM ครบสัญญา: ${pm['title']}',
+        'body':
+            '🏠 บ้าน: ${prop['name'] ?? '-'}\n'
+            'ทำครบ $done ครั้งตามที่กำหนดแล้ว — PM นี้ถูกปิดอัตโนมัติ\n'
+            'ถ้าต้องการต่อสัญญา กรุณาสร้าง PM ใหม่',
+        'type': 'pm',
+        'reference_id': pm['id']?.toString(),
+      });
     } catch (_) {}
   }
 

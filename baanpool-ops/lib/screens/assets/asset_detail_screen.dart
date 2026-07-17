@@ -311,9 +311,9 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
     final titleCtrl = TextEditingController(text: _asset!.name);
     final descCtrl = TextEditingController();
     PmFrequency selectedFreq = PmFrequency.month1;
-    // ตั้งต้น = ทำต่อเนื่องตามความถี่ (ไม่จำกัดรอบ) ใครอยากเว้นค่อยติ๊ก
-    bool limitRounds = false;
-    int? selectedRounds;
+    PmMode selectedMode = PmMode.continuous;
+    int? selectedRounds; // รอบต่อปี (โหมด yearlyRounds)
+    int totalRounds = 6; // จำนวนครั้งทั้งหมด (โหมด limitedCount)
     DateTime nextDue = DateTime.now().add(const Duration(days: 30));
     String? selectedTechId;
 
@@ -352,32 +352,76 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                   maxLines: 2,
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<PmFrequency>(
-                  value: selectedFreq,
-                  decoration: const InputDecoration(labelText: 'ความถี่'),
-                  items: PmFrequency.values
+                // ─── ประเภท PM: เลือกอันเดียว แล้วค่อยโชว์ช่องที่เกี่ยว ───
+                DropdownButtonFormField<PmMode>(
+                  value: selectedMode,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'ประเภท PM'),
+                  items: PmMode.values
                       .map(
-                        (f) => DropdownMenuItem(
-                          value: f,
-                          child: Text(f.displayName),
+                        (m) => DropdownMenuItem(
+                          value: m,
+                          child: Text(m.displayName),
                         ),
                       )
                       .toList(),
                   onChanged: (v) {
                     if (v != null) {
                       setDialogState(() {
-                        selectedFreq = v;
-                        // รอบสูงสุดเปลี่ยนตามความถี่ → กลับไปโหมดต่อเนื่อง
-                        limitRounds = false;
-                        selectedRounds = null;
+                        selectedMode = v;
+                        selectedRounds = v == PmMode.yearlyRounds
+                            ? selectedFreq.maxRoundsPerYear - 1
+                            : null;
                       });
                     }
                   },
                 ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 4),
+                  child: Text(
+                    selectedMode.description,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(ctx).colorScheme.outline,
+                    ),
+                  ),
+                ),
+                // ความถี่ — ไม่ใช้กับแบบจำกัดจำนวนครั้ง (นัดวันเองทีละครั้ง)
+                if (selectedMode != PmMode.limitedCount) ...[
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<PmFrequency>(
+                    value: selectedFreq,
+                    decoration: const InputDecoration(labelText: 'ความถี่'),
+                    items: PmFrequency.values
+                        .map(
+                          (f) => DropdownMenuItem(
+                            value: f,
+                            child: Text(f.displayName),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) {
+                        setDialogState(() {
+                          selectedFreq = v;
+                          if (selectedMode == PmMode.yearlyRounds) {
+                            selectedRounds = v.maxRoundsPerYear > 1
+                                ? v.maxRoundsPerYear - 1
+                                : 1;
+                          }
+                        });
+                      }
+                    },
+                  ),
+                ],
                 const SizedBox(height: 12),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('วันครบกำหนดรอบแรก'),
+                  title: Text(
+                    selectedMode == PmMode.limitedCount
+                        ? 'นัดวันครั้งแรก'
+                        : 'วันครบกำหนดรอบแรก',
+                  ),
                   subtitle: Text(
                     '${nextDue.day}/${nextDue.month}/${nextDue.year}',
                   ),
@@ -396,28 +440,9 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                     }
                   },
                 ),
-                if (selectedFreq.maxRoundsPerYear > 1) ...[
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    value: limitRounds,
-                    title: const Text(
-                      'จำกัดจำนวนรอบต่อปี',
-                      style: TextStyle(fontSize: 14),
-                    ),
-                    subtitle: Text(
-                      limitRounds
-                          ? 'ครบรอบแล้วเว้นยาว กลับมาเริ่มใหม่วันเดิมปีหน้า'
-                          : 'ตอนนี้: ทำต่อเนื่องทุก ${selectedFreq.displayName} ไม่เว้น',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    onChanged: (v) => setDialogState(() {
-                      limitRounds = v ?? false;
-                      selectedRounds = selectedFreq.maxRoundsPerYear - 1;
-                    }),
-                  ),
-                  if (limitRounds) ...[
+                // ─── โหมด: ทำเป็นรอบต่อปี ───
+                if (selectedMode == PmMode.yearlyRounds) ...[
+                  if (selectedFreq.maxRoundsPerYear > 1) ...[
                     DropdownButtonFormField<int>(
                       value: selectedRounds,
                       isExpanded: true,
@@ -441,8 +466,37 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                           rounds: selectedRounds!,
                         ),
                       ),
-                  ],
+                  ] else
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        selectedFreq.weekDays != null
+                            ? 'ความถี่แบบสัปดาห์ยังไม่รองรับการกำหนดรอบต่อปี '
+                                '— ระบบจะทำต่อเนื่องให้'
+                            : 'ความถี่ ${selectedFreq.displayName} '
+                                'ทำปีละครั้งอยู่แล้ว จึงไม่ต้องกำหนดรอบ',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
                 ],
+                // ─── โหมด: จำกัดจำนวนครั้ง ───
+                if (selectedMode == PmMode.limitedCount)
+                  DropdownButtonFormField<int>(
+                    value: totalRounds,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'ทำทั้งหมดกี่ครั้ง',
+                      helperText: 'จบครั้งหนึ่งแล้วค่อยนัดวันครั้งถัดไป '
+                          'ครบแล้วระบบปิด PM ให้เอง',
+                      helperMaxLines: 2,
+                    ),
+                    items: [
+                      for (var i = 2; i <= 24; i++)
+                        DropdownMenuItem(value: i, child: Text('$i ครั้ง')),
+                    ],
+                    onChanged: (v) =>
+                        setDialogState(() => totalRounds = v ?? 6),
+                  ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String?>(
                   value: selectedTechId,
@@ -500,8 +554,15 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
         'next_due_date': nextDue.toIso8601String().split('T').first,
         // anchor = วันกำหนดรอบแรก — ยึดไว้ไม่ให้วันดริฟต์ตามวันจบงาน
         'anchor_date': nextDue.toIso8601String().split('T').first,
-        // null = ทำต่อเนื่องตามความถี่ (ไม่จำกัดรอบ)
-        'rounds_per_year': limitRounds ? selectedRounds : null,
+        // ประเภท PM แยกจากข้อมูล — ต้องมีได้แค่อย่างใดอย่างหนึ่ง (DB มี CHECK คุมอยู่)
+        // ความถี่ที่กำหนดรอบไม่ได้ (สัปดาห์ / 12 เดือน) → null = ต่อเนื่อง
+        // กัน 0 หรือ -1 หลุดไปชน CHECK (rounds_per_year BETWEEN 1 AND 12)
+        'rounds_per_year': selectedMode == PmMode.yearlyRounds &&
+                selectedFreq.maxRoundsPerYear > 1
+            ? selectedRounds
+            : null,
+        'total_rounds':
+            selectedMode == PmMode.limitedCount ? totalRounds : null,
         'assigned_to': selectedTechId,
       });
 
