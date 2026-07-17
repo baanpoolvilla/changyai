@@ -220,8 +220,9 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     final titleCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     PmFrequency selectedFreq = PmFrequency.month1;
-    // ตั้งต้น = ทำต่อเนื่องไม่เว้น (พฤติกรรมปกติ) ใครอยากเว้นช่วงค่อยเปลี่ยน
-    int? selectedRounds = PmFrequency.month1.maxRoundsPerYear;
+    // ตั้งต้น = ทำต่อเนื่องตามความถี่ (ไม่จำกัดรอบ) ใครอยากเว้นค่อยติ๊ก
+    bool limitRounds = false;
+    int? selectedRounds;
     DateTime nextDue = DateTime.now().add(const Duration(days: 30));
     String? selectedTechId;
     Set<String> selectedPropertyIds = {};
@@ -394,8 +395,9 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                         if (v != null) {
                           setDialogState(() {
                             selectedFreq = v;
-                            // รอบสูงสุดเปลี่ยนตามความถี่ → รีเซ็ตเป็นต่อเนื่อง
-                            selectedRounds = v.maxRoundsPerYear;
+                            // รอบสูงสุดเปลี่ยนตามความถี่ → กลับไปโหมดต่อเนื่อง
+                            limitRounds = false;
+                            selectedRounds = null;
                           });
                         }
                       },
@@ -423,42 +425,57 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                       },
                     ),
                     if (selectedFreq.maxRoundsPerYear > 1) ...[
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<int>(
-                        value: selectedRounds,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'ทำกี่รอบต่อปี',
-                          helperText: 'เลือกน้อยกว่าเต็มปี = ครบรอบแล้วเว้นยาว '
-                              'กลับมาเริ่มใหม่วันเดิมปีหน้า',
-                          helperMaxLines: 2,
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        value: limitRounds,
+                        title: const Text(
+                          'จำกัดจำนวนรอบต่อปี',
+                          style: TextStyle(fontSize: 14),
                         ),
-                        items: [
-                          for (var i = 1;
-                              i <= selectedFreq.maxRoundsPerYear;
-                              i++)
-                            DropdownMenuItem(
-                              value: i,
-                              child: Text(
-                                i == selectedFreq.maxRoundsPerYear
-                                    ? '$i รอบ (ต่อเนื่อง ไม่เว้น)'
-                                    : '$i รอบ',
-                              ),
-                            ),
-                        ],
-                        onChanged: (v) =>
-                            setDialogState(() => selectedRounds = v),
+                        subtitle: Text(
+                          limitRounds
+                              ? 'ครบรอบแล้วเว้นยาว กลับมาเริ่มใหม่วันเดิมปีหน้า'
+                              : 'ตอนนี้: ทำต่อเนื่องทุก ${selectedFreq.displayName} ไม่เว้น',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        onChanged: (v) => setDialogState(() {
+                          limitRounds = v ?? false;
+                          selectedRounds =
+                              selectedFreq.maxRoundsPerYear - 1;
+                        }),
                       ),
-                      if (selectedRounds != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: _cyclePreview(
-                            ctx,
-                            anchor: nextDue,
-                            frequency: selectedFreq,
-                            rounds: selectedRounds!,
+                      if (limitRounds) ...[
+                        DropdownButtonFormField<int>(
+                          value: selectedRounds,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'ทำกี่รอบต่อปี',
                           ),
+                          items: [
+                            for (var i = 1;
+                                i < selectedFreq.maxRoundsPerYear;
+                                i++)
+                              DropdownMenuItem(
+                                value: i,
+                                child: Text('$i รอบ'),
+                              ),
+                          ],
+                          onChanged: (v) =>
+                              setDialogState(() => selectedRounds = v),
                         ),
+                        if (selectedRounds != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: _cyclePreview(
+                              ctx,
+                              anchor: nextDue,
+                              frequency: selectedFreq,
+                              rounds: selectedRounds!,
+                            ),
+                          ),
+                      ],
                     ],
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String?>(
@@ -616,9 +633,8 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
           'next_due_date': nextDue.toIso8601String().split('T').first,
           // anchor = วันกำหนดรอบแรก — ยึดไว้ไม่ให้วันดริฟต์ตามวันจบงาน
           'anchor_date': nextDue.toIso8601String().split('T').first,
-          // ความถี่แบบสัปดาห์/ปีละครั้ง ไม่มีระบบรอบต่อปี → เก็บ null (ต่อเนื่อง)
-          'rounds_per_year':
-              selectedFreq.maxRoundsPerYear > 1 ? selectedRounds : null,
+          // null = ทำต่อเนื่องตามความถี่ (ไม่จำกัดรอบ)
+          'rounds_per_year': limitRounds ? selectedRounds : null,
           'assigned_to': selectedTechId,
         });
       }
