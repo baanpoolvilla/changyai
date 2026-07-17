@@ -36,12 +36,49 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
 
   bool get _isFilterMode => _filterMode != null;
 
+  // ─── ตัวกรองตามบ้าน (รูปแบบเดียวกับหน้า PM) ───────────
+  String? _selectedPropertyGroup; // null = ทุกหมวด
+  String? _selectedHouseId; // null = ทุกหลังในหมวด
+
+  /// ดึงหมวดบ้านจากชื่อ เช่น "BS-M4" → "BS-M", "PT-BT1" → "PT-BT"
+  String _getPropertyGroup(String propertyName) {
+    final match = RegExp(r'^([A-Za-z]+-[A-Za-z]+)').firstMatch(propertyName);
+    if (match != null) return match.group(1)!.toUpperCase();
+    final fallback = RegExp(r'^(.+?)\d+$').firstMatch(propertyName);
+    if (fallback != null) return fallback.group(1)!.toUpperCase();
+    return propertyName.toUpperCase();
+  }
+
+  /// ใบงานหลังผ่านตัวกรองบ้านแล้ว — ทุกแท็บนับจากชุดนี้
+  List<WorkOrder> get _visibleOrders {
+    if (_selectedHouseId != null) {
+      return _workOrders
+          .where(
+            (w) =>
+                w.propertyId == _selectedHouseId ||
+                w.additionalPropertyIds.contains(_selectedHouseId),
+          )
+          .toList();
+    }
+    if (_selectedPropertyGroup == null) return _workOrders;
+    return _workOrders.where((w) {
+      // ใบงานหลายบ้าน — เข้าเกณฑ์ถ้าบ้านใดบ้านหนึ่งอยู่ในหมวดนี้
+      final ids = [w.propertyId, ...w.additionalPropertyIds];
+      return ids.any((id) {
+        final name = _propertyNames[id];
+        if (name == null) return false;
+        return _getPropertyGroup(name) == _selectedPropertyGroup;
+      });
+    }).toList();
+  }
+
   List<WorkOrder> get _openOrders =>
-      _workOrders.where((w) => w.status == WorkOrderStatus.open).toList();
-  List<WorkOrder> get _inProgressOrders =>
-      _workOrders.where((w) => w.status == WorkOrderStatus.inProgress).toList();
+      _visibleOrders.where((w) => w.status == WorkOrderStatus.open).toList();
+  List<WorkOrder> get _inProgressOrders => _visibleOrders
+      .where((w) => w.status == WorkOrderStatus.inProgress)
+      .toList();
   List<WorkOrder> get _noExpenseOrders =>
-      _workOrders
+      _visibleOrders
           .where(
             (w) =>
                 w.status == WorkOrderStatus.completed &&
@@ -49,7 +86,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
           )
           .toList();
   List<WorkOrder> get _completedOrders =>
-      _workOrders
+      _visibleOrders
           .where(
             (w) =>
                 w.status == WorkOrderStatus.cancelled ||
@@ -211,11 +248,18 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _isFilterMode
-          ? _buildFilteredList(theme)
-          : isDesktop
-          ? _buildKanbanDesktop(theme)
-          : _buildKanbanMobile(theme),
+          : Column(
+              children: [
+                if (!_isFilterMode) _buildPropertyFilter(theme),
+                Expanded(
+                  child: _isFilterMode
+                      ? _buildFilteredList(theme)
+                      : isDesktop
+                      ? _buildKanbanDesktop(theme)
+                      : _buildKanbanMobile(theme),
+                ),
+              ],
+            ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           await context.push('/work-orders/new');
@@ -332,6 +376,134 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
     );
   }
 
+  /// แถบกรองตามบ้าน: แถวบน = หมวด, แถวล่าง = บ้านในหมวดที่เลือก
+  Widget _buildPropertyFilter(ThemeData theme) {
+    // เอาเฉพาะบ้านที่มีใบงานจริง
+    final usedIds = <String>{};
+    for (final w in _workOrders) {
+      usedIds.add(w.propertyId);
+      usedIds.addAll(w.additionalPropertyIds);
+    }
+    final entries = _propertyNames.entries
+        .where((e) => usedIds.contains(e.key))
+        .toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+    if (entries.isEmpty) return const SizedBox.shrink();
+
+    final grouped = <String, List<MapEntry<String, String>>>{};
+    for (final e in entries) {
+      grouped.putIfAbsent(_getPropertyGroup(e.value), () => []).add(e);
+    }
+    final groups = grouped.keys.toList()..sort();
+    if (groups.length < 2 && _selectedPropertyGroup == null) {
+      return const SizedBox.shrink();
+    }
+
+    final housesInGroup = _selectedPropertyGroup == null
+        ? <MapEntry<String, String>>[]
+        : (grouped[_selectedPropertyGroup] ?? []);
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 44,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilterChip(
+                  label: const Text('ทุกบ้าน'),
+                  selected:
+                      _selectedPropertyGroup == null && _selectedHouseId == null,
+                  onSelected: (_) => setState(() {
+                    _selectedPropertyGroup = null;
+                    _selectedHouseId = null;
+                  }),
+                ),
+              ),
+              ...groups.map(
+                (g) => Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    label: Text(g),
+                    selected: _selectedPropertyGroup == g,
+                    onSelected: (_) => setState(() {
+                      if (_selectedPropertyGroup == g) {
+                        _selectedPropertyGroup = null;
+                      } else {
+                        _selectedPropertyGroup = g;
+                      }
+                      _selectedHouseId = null;
+                    }),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (housesInGroup.isNotEmpty)
+          SizedBox(
+            height: 44,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    label: const Text('ทุกหลังในหมวด'),
+                    selected: _selectedHouseId == null,
+                    onSelected: (_) => setState(() => _selectedHouseId = null),
+                  ),
+                ),
+                ...housesInGroup.map(
+                  (e) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: Text(e.value),
+                      selected: _selectedHouseId == e.key,
+                      onSelected: (_) => setState(() {
+                        _selectedHouseId =
+                            _selectedHouseId == e.key ? null : e.key;
+                      }),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// แท็กบอกว่าใบงานนี้ระบบสร้างให้อัตโนมัติจาก PM ไม่ใช่คนกดสร้าง
+  Widget _autoCreatedBadge(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.autorenew, size: 11, color: theme.colorScheme.primary),
+          const SizedBox(width: 3),
+          Text(
+            'อัตโนมัติ',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildWorkOrderCard(WorkOrder wo, ThemeData theme) {
     final propertyName = _propertyNames[wo.propertyId] ?? '';
     final creatorName =
@@ -373,6 +545,10 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
                     ),
                   ),
                   const SizedBox(width: 8),
+                  if (wo.autoCreated) ...[
+                    _autoCreatedBadge(theme),
+                    const SizedBox(width: 4),
+                  ],
                   _priorityBadge(wo.priority),
                 ],
               ),

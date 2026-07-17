@@ -21,6 +21,8 @@ class WorkOrder {
   final List<String> additionalPropertyIds;
   final String? pmScheduleId;
   final List<String> pmScheduleIds;
+  /// true = ระบบสร้างให้อัตโนมัติจาก PM ที่ถึงกำหนด (ไม่ใช่คนกดสร้าง)
+  final bool autoCreated;
   final DateTime createdAt;
 
   const WorkOrder({
@@ -43,6 +45,7 @@ class WorkOrder {
     this.additionalPropertyIds = const [],
     this.pmScheduleId,
     this.pmScheduleIds = const [],
+    this.autoCreated = false,
     required this.createdAt,
   });
 
@@ -96,6 +99,7 @@ class WorkOrder {
               ?.map((e) => e as String)
               .toList() ??
           [],
+      autoCreated: json['auto_created'] as bool? ?? false,
       createdAt: parseServerTimestampToThai(json['created_at'] as String),
     );
   }
