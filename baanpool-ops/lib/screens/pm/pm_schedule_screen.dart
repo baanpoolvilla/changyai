@@ -883,18 +883,14 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                 _buildStatBar(theme),
                 // Property filter chips
                 if (filterGroups.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
+                  _alignedBar(
                     child: Column(
                       children: [
                         SizedBox(
                           height: 44,
                           child: ListView(
                             scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 4,
-                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 4),
                             children: [
                               Padding(
                                 padding: const EdgeInsets.only(right: 8),
@@ -924,10 +920,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                             height: 44,
                             child: ListView(
                               scrollDirection: Axis.horizontal,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 4,
-                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 4),
                               children: [
                                 Padding(
                                   padding: const EdgeInsets.only(right: 8),
@@ -1264,6 +1257,24 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     );
   }
 
+  /// จัดแถวบน (แดชบอร์ด/ชิป) ให้อยู่ในแนวเดียวกับการ์ดในลิสต์
+  /// ต้องใช้ maxWidth/padding ชุดเดียวกับ PageWrapper ไม่งั้นจะเหลื่อมกัน
+  Widget _alignedBar({required Widget child}) {
+    final isDesktop = MediaQuery.of(context).size.width >= 720;
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: isDesktop ? 1100 : double.infinity,
+        ),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: isDesktop ? 32 : 16),
+          child: child,
+        ),
+      ),
+    );
+  }
+
   /// แดชบอร์ด: แถวตัวเลขสรุปตามสถานะ — กดเพื่อกรองรายการด้านล่าง
   /// นับจาก _propertyFiltered เพื่อให้ตัวเลขทุกช่องยังเห็นครบ
   /// แม้กำลังกรองสถานะใดสถานะหนึ่งอยู่
@@ -1282,83 +1293,79 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
         .toList();
     if (visible.isEmpty) return const SizedBox.shrink();
 
-    return SizedBox(
-      height: 92,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-        children: [
-          for (final st in visible)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: _statTile(theme, st, counts[st]!),
-            ),
-        ],
+    return _alignedBar(
+      child: SizedBox(
+        height: 78,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.only(top: 10, bottom: 2),
+          children: [
+            for (final st in visible)
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: _statTile(theme, st, counts[st]!),
+              ),
+          ],
+        ),
       ),
     );
   }
 
+  /// stat tile ตาม spec: มีแค่ label + value
+  /// เลือกอยู่ = พื้นอ่อนสีสถานะ + ขอบหนา (ไม่ได้บอกด้วยสีอย่างเดียว มี icon กำกับ)
   Widget _statTile(ThemeData theme, _PmStatus st, int count) {
     final selected = _selectedStatus == st;
     return Tooltip(
       message: st.hint,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => setState(
-          () => _selectedStatus = selected ? null : st,
-        ),
-        child: Container(
-          width: 132,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: selected
-                ? st.color.withValues(alpha: 0.12)
-                : theme.colorScheme.surfaceContainerHighest.withValues(
-                    alpha: 0.5,
-                  ),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: selected ? st.color : theme.colorScheme.outlineVariant,
-              width: selected ? 2 : 1,
+      child: Material(
+        color: selected ? st.color.withValues(alpha: 0.10) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => setState(() => _selectedStatus = selected ? null : st),
+          child: Container(
+            width: 128,
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: selected
+                    ? st.color
+                    : theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
+                width: selected ? 1.5 : 1,
+              ),
             ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Row(
-                children: [
-                  Icon(st.icon, size: 15, color: st.color),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(
-                      st.label,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(st.icon, size: 14, color: st.color),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        st.label,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
+                  ],
+                ),
+                Text(
+                  '$count',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    color: st.color,
+                    fontWeight: FontWeight.w600,
+                    height: 1.0,
                   ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '$count',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  color: st.color,
-                  fontWeight: FontWeight.bold,
-                  height: 1.1,
                 ),
-              ),
-              Text(
-                'รายการ',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.outline,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
