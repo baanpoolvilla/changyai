@@ -19,22 +19,23 @@ class AppTheme {
   static const Color _scaffoldLight = Color(0xFFF5FAF8);
   static const Color _borderLight = Color(0xFFDCE9E6);
 
-  static final ColorScheme _lightScheme = ColorScheme.fromSeed(
-    seedColor: primaryColor,
-    brightness: Brightness.light,
-  ).copyWith(
-    primary: primaryColor,
-    onPrimary: Colors.white,
-    secondary: secondaryColor,
-    onSecondary: Colors.white,
-    surface: Colors.white,
-    onSurface: const Color(0xFF17332F),
-    surfaceContainerLowest: Colors.white,
-    surfaceContainerLow: paleGreen,
-    surfaceContainer: const Color(0xFFE8F5F2),
-    outline: const Color(0xFF76908B),
-    outlineVariant: _borderLight,
-  );
+  static final ColorScheme _lightScheme =
+      ColorScheme.fromSeed(
+        seedColor: primaryColor,
+        brightness: Brightness.light,
+      ).copyWith(
+        primary: primaryColor,
+        onPrimary: Colors.white,
+        secondary: secondaryColor,
+        onSecondary: Colors.white,
+        surface: Colors.white,
+        onSurface: const Color(0xFF17332F),
+        surfaceContainerLowest: Colors.white,
+        surfaceContainerLow: paleGreen,
+        surfaceContainer: const Color(0xFFE8F5F2),
+        outline: const Color(0xFF76908B),
+        outlineVariant: _borderLight,
+      );
 
   static final ThemeData light = ThemeData(
     useMaterial3: true,

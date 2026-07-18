@@ -49,9 +49,9 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
       _lastMaintenanceDate = results[2] as DateTime?;
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')),
+        );
       }
     }
     if (mounted) setState(() => _loading = false);
@@ -93,9 +93,9 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('ลบล้มเหลว: ${friendlyError(e)}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ลบล้มเหลว: ${friendlyError(e)}')),
+        );
       }
     }
   }
@@ -222,9 +222,9 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
       _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('แก้ไขล้มเหลว: ${friendlyError(e)}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('แก้ไขล้มเหลว: ${friendlyError(e)}')),
+        );
       }
     }
   }
@@ -474,9 +474,9 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                       child: Text(
                         selectedFreq.weekDays != null
                             ? 'ความถี่แบบสัปดาห์ยังไม่รองรับการกำหนดรอบต่อปี '
-                                '— ระบบจะทำต่อเนื่องให้'
+                                  '— ระบบจะทำต่อเนื่องให้'
                             : 'ความถี่ ${selectedFreq.displayName} '
-                                'ทำปีละครั้งอยู่แล้ว จึงไม่ต้องกำหนดรอบ',
+                                  'ทำปีละครั้งอยู่แล้ว จึงไม่ต้องกำหนดรอบ',
                         style: const TextStyle(fontSize: 12),
                       ),
                     ),
@@ -488,7 +488,8 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                     isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'ทำทั้งหมดกี่ครั้ง',
-                      helperText: 'จบครั้งหนึ่งแล้วค่อยนัดวันครั้งถัดไป '
+                      helperText:
+                          'จบครั้งหนึ่งแล้วค่อยนัดวันครั้งถัดไป '
                           'ครบแล้วระบบปิด PM ให้เอง',
                       helperMaxLines: 2,
                     ),
@@ -568,12 +569,14 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
         // ประเภท PM แยกจากข้อมูล — ต้องมีได้แค่อย่างใดอย่างหนึ่ง (DB มี CHECK คุมอยู่)
         // ความถี่ที่กำหนดรอบไม่ได้ (สัปดาห์ / 12 เดือน) → null = ต่อเนื่อง
         // กัน 0 หรือ -1 หลุดไปชน CHECK (rounds_per_year BETWEEN 1 AND 12)
-        'rounds_per_year': selectedMode == PmMode.yearlyRounds &&
+        'rounds_per_year':
+            selectedMode == PmMode.yearlyRounds &&
                 selectedFreq.maxRoundsPerYear > 1
             ? selectedRounds
             : null,
-        'total_rounds':
-            selectedMode == PmMode.limitedCount ? totalRounds : null,
+        'total_rounds': selectedMode == PmMode.limitedCount
+            ? totalRounds
+            : null,
         'assigned_to': selectedTechId,
         'cc_user_ids': ccUserIds.toList(),
       });
@@ -596,7 +599,9 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('เพิ่ม PM Schedule ล้มเหลว: ${friendlyError(e)}')),
+          SnackBar(
+            content: Text('เพิ่ม PM Schedule ล้มเหลว: ${friendlyError(e)}'),
+          ),
         );
       }
     }
@@ -694,9 +699,9 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
       _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('ลบล้มเหลว: ${friendlyError(e)}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ลบล้มเหลว: ${friendlyError(e)}')),
+        );
       }
     }
   }

@@ -154,7 +154,6 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     });
   }
 
-
   void _togglePropertyGroup(String group) {
     setState(() {
       if (_selectedPropertyGroup == group) {
@@ -237,13 +236,14 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
 
       // Load pending work orders linked to PM schedules
       final pmIds = _schedules.map((s) => s.id).toList();
-      _pendingWorkOrderIds =
-          await _service.getPendingWorkOrderIdsByPmSchedule(pmIds);
+      _pendingWorkOrderIds = await _service.getPendingWorkOrderIdsByPmSchedule(
+        pmIds,
+      );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')),
+        );
       }
     }
     if (mounted) setState(() => _loading = false);
@@ -303,9 +303,9 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')),
+        );
       }
       return;
     }
@@ -515,8 +515,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                       const SizedBox(height: 8),
                       DropdownButtonFormField<PmFrequency>(
                         value: selectedFreq,
-                        decoration:
-                            const InputDecoration(labelText: 'ความถี่'),
+                        decoration: const InputDecoration(labelText: 'ความถี่'),
                         items: PmFrequency.values
                             .map(
                               (f) => DropdownMenuItem(
@@ -576,13 +575,12 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                             labelText: 'ทำกี่รอบต่อปี',
                           ),
                           items: [
-                            for (var i = 1;
-                                i < selectedFreq.maxRoundsPerYear;
-                                i++)
-                              DropdownMenuItem(
-                                value: i,
-                                child: Text('$i รอบ'),
-                              ),
+                            for (
+                              var i = 1;
+                              i < selectedFreq.maxRoundsPerYear;
+                              i++
+                            )
+                              DropdownMenuItem(value: i, child: Text('$i รอบ')),
                           ],
                           onChanged: (v) =>
                               setDialogState(() => selectedRounds = v),
@@ -603,9 +601,9 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                           child: Text(
                             selectedFreq.weekDays != null
                                 ? 'ความถี่แบบสัปดาห์ยังไม่รองรับการกำหนดรอบต่อปี '
-                                    '— ระบบจะทำต่อเนื่องให้'
+                                      '— ระบบจะทำต่อเนื่องให้'
                                 : 'ความถี่ ${selectedFreq.displayName} '
-                                    'ทำปีละครั้งอยู่แล้ว จึงไม่ต้องกำหนดรอบ',
+                                      'ทำปีละครั้งอยู่แล้ว จึงไม่ต้องกำหนดรอบ',
                             style: const TextStyle(fontSize: 12),
                           ),
                         ),
@@ -617,20 +615,17 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                         isExpanded: true,
                         decoration: const InputDecoration(
                           labelText: 'ทำทั้งหมดกี่ครั้ง',
-                          helperText: 'จบครั้งหนึ่งแล้วค่อยนัดวันครั้งถัดไป '
+                          helperText:
+                              'จบครั้งหนึ่งแล้วค่อยนัดวันครั้งถัดไป '
                               'ครบแล้วระบบปิด PM ให้เอง',
                           helperMaxLines: 2,
                         ),
                         items: [
                           for (var i = 2; i <= 24; i++)
-                            DropdownMenuItem(
-                              value: i,
-                              child: Text('$i ครั้ง'),
-                            ),
+                            DropdownMenuItem(value: i, child: Text('$i ครั้ง')),
                         ],
-                        onChanged: (v) => setDialogState(
-                          () => totalRounds = v ?? 6,
-                        ),
+                        onChanged: (v) =>
+                            setDialogState(() => totalRounds = v ?? 6),
                       ),
                     ],
                     const SizedBox(height: 12),
@@ -803,12 +798,14 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
           // ประเภท PM แยกจากข้อมูล — ต้องมีได้แค่อย่างใดอย่างหนึ่ง (DB มี CHECK คุมอยู่)
           // ความถี่ที่กำหนดรอบไม่ได้ (สัปดาห์ / 12 เดือน) → null = ต่อเนื่อง
           // กัน 0 หรือ -1 หลุดไปชน CHECK (rounds_per_year BETWEEN 1 AND 12)
-          'rounds_per_year': selectedMode == PmMode.yearlyRounds &&
+          'rounds_per_year':
+              selectedMode == PmMode.yearlyRounds &&
                   selectedFreq.maxRoundsPerYear > 1
               ? selectedRounds
               : null,
-          'total_rounds':
-              selectedMode == PmMode.limitedCount ? totalRounds : null,
+          'total_rounds': selectedMode == PmMode.limitedCount
+              ? totalRounds
+              : null,
           'assigned_to': selectedTechId,
           'cc_user_ids': ccUserIds.toList(),
         });
@@ -830,7 +827,9 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('สร้าง PM Schedule ล้มเหลว: ${friendlyError(e)}')),
+          SnackBar(
+            content: Text('สร้าง PM Schedule ล้มเหลว: ${friendlyError(e)}'),
+          ),
         );
       }
     }
@@ -842,10 +841,11 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
 
     // Properties that have at least 1 PM schedule
     final usedPropertyIds = _schedules.map((s) => s.propertyId).toSet();
-    final filterProperties = _propertyNames.entries
-        .where((e) => usedPropertyIds.contains(e.key))
-        .toList()
-      ..sort((a, b) => a.value.compareTo(b.value));
+    final filterProperties =
+        _propertyNames.entries
+            .where((e) => usedPropertyIds.contains(e.key))
+            .toList()
+          ..sort((a, b) => a.value.compareTo(b.value));
     final groupedFilterProperties = <String, List<MapEntry<String, String>>>{};
     for (final entry in filterProperties) {
       final group = _getPropertyGroup(entry.value);
@@ -854,8 +854,10 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     final filterGroups = groupedFilterProperties.keys.toList()..sort();
     final visiblePropertyOptions = _selectedPropertyGroup == null
         ? <MapEntry<String, String>>[]
-        : ([...(groupedFilterProperties[_selectedPropertyGroup] ?? [])]
-          ..sort((a, b) => a.value.compareTo(b.value)));
+        : (<MapEntry<String, String>>[
+            ...(groupedFilterProperties[_selectedPropertyGroup] ??
+                <MapEntry<String, String>>[]),
+          ]..sort((a, b) => a.value.compareTo(b.value)));
 
     final displayed = _filteredSchedules;
 
@@ -980,28 +982,38 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
 
     if (selected == null || selected.isEmpty || !mounted) return;
 
-    final selectedPms = candidates.where((s) => selected.contains(s.id)).toList();
+    final selectedPms = candidates
+        .where((s) => selected.contains(s.id))
+        .toList();
     final first = selectedPms.first;
 
     // Build description listing all houses sorted by property name
     final sortedPms = [...selectedPms]
       ..sort((a, b) {
-        final na = a.propertyName ?? _propertyNames[a.propertyId] ?? a.propertyId;
-        final nb = b.propertyName ?? _propertyNames[b.propertyId] ?? b.propertyId;
+        final na =
+            a.propertyName ?? _propertyNames[a.propertyId] ?? a.propertyId;
+        final nb =
+            b.propertyName ?? _propertyNames[b.propertyId] ?? b.propertyId;
         return na.compareTo(nb);
       });
-    final houseLines = sortedPms.map((s) {
-      final name = s.propertyName ?? _propertyNames[s.propertyId] ?? s.propertyId;
-      final d = s.nextDueDate;
-      return '- $name (ครบกำหนด: ${d.day}/${d.month}/${d.year})';
-    }).join('\n');
+    final houseLines = sortedPms
+        .map((s) {
+          final name =
+              s.propertyName ?? _propertyNames[s.propertyId] ?? s.propertyId;
+          final d = s.nextDueDate;
+          return '- $name (ครบกำหนด: ${d.day}/${d.month}/${d.year})';
+        })
+        .join('\n');
     final description =
         'PM: ${first.title}\nรวม ${selectedPms.length} หลัง:\n$houseLines'
         '\nความถี่: ${first.frequency.displayName}'
         '${first.description != null ? "\nรายละเอียด: ${first.description}" : ""}';
 
     // Primary property = first sorted PM, additional = the rest
-    final additionalPropertyIds = sortedPms.skip(1).map((s) => s.propertyId).toList();
+    final additionalPropertyIds = sortedPms
+        .skip(1)
+        .map((s) => s.propertyId)
+        .toList();
 
     final queryParams = <String, String>{
       'title': first.title,
@@ -1172,13 +1184,16 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                   else
                     _chip(Icons.repeat, s.frequency.displayName),
                   if (!s.awaitingSchedule)
-                    _chip(
-                      Icons.calendar_today,
-                      formatThaiDate(s.nextDueDate),
-                    ),
-                  _chip(Icons.schedule, 'สร้างเมื่อ ${formatThaiDateTime(s.createdAt)}'),
+                    _chip(Icons.calendar_today, formatThaiDate(s.nextDueDate)),
+                  _chip(
+                    Icons.schedule,
+                    'สร้างเมื่อ ${formatThaiDateTime(s.createdAt)}',
+                  ),
                   if (s.createdByName != null)
-                    _chip(Icons.person_add_alt_1, 'สร้างโดย ${s.createdByName!}'),
+                    _chip(
+                      Icons.person_add_alt_1,
+                      'สร้างโดย ${s.createdByName!}',
+                    ),
                   if (s.assignedToName != null)
                     _chip(Icons.person, s.assignedToName!),
                   if (assetName != null) _chip(Icons.build, assetName),
@@ -1381,7 +1396,8 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                         child: FilterChip(
                           avatar: const Icon(Icons.grid_view_rounded, size: 16),
                           label: const Text('ทั้งหมด'),
-                          selected: _selectedPropertyGroup == null &&
+                          selected:
+                              _selectedPropertyGroup == null &&
                               _selectedPropertyId == null,
                           onSelected: (_) => _resetPropertyFilters(),
                         ),
@@ -1675,7 +1691,9 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                       context: ctx,
                       initialDate: nextDue,
                       firstDate: DateTime(2020),
-                      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+                      lastDate: DateTime.now().add(
+                        const Duration(days: 365 * 5),
+                      ),
                     );
                     if (picked != null) setDialogState(() => nextDue = picked);
                   },
@@ -1710,7 +1728,9 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     try {
       await _service.updatePmSchedule(s.id, {
         'title': titleCtrl.text.trim(),
-        'description': descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+        'description': descCtrl.text.trim().isEmpty
+            ? null
+            : descCtrl.text.trim(),
         'next_due_date': nextDue.toIso8601String().split('T').first,
       });
       if (mounted) {
@@ -1855,7 +1875,8 @@ class _BatchPmDialog extends StatefulWidget {
 class _BatchPmDialogState extends State<_BatchPmDialog> {
   final Set<String> _selected = {};
   String? _lockedTitle;
-  String? _lockedAssetName; // compare by name, not ID (each house has its own asset ID)
+  String?
+  _lockedAssetName; // compare by name, not ID (each house has its own asset ID)
   String? _selectedGroup;
 
   @override
@@ -1880,7 +1901,8 @@ class _BatchPmDialogState extends State<_BatchPmDialog> {
       // Group filter
       if (_selectedGroup != null) {
         final name = s.propertyName ?? widget.propertyNames[s.propertyId];
-        if (name == null || _propertyGroup(name) != _selectedGroup) return false;
+        if (name == null || _propertyGroup(name) != _selectedGroup)
+          return false;
       }
       // Lock: same title + same asset name after first selection
       if (_lockedTitle != null) {
@@ -1914,14 +1936,16 @@ class _BatchPmDialogState extends State<_BatchPmDialog> {
     final visible = _visible;
     final theme = Theme.of(context);
 
-    final allGroups = widget.candidates
-        .map((s) {
-          final n = s.propertyName ?? widget.propertyNames[s.propertyId] ?? '';
-          return _propertyGroup(n);
-        })
-        .toSet()
-        .toList()
-      ..sort();
+    final allGroups =
+        widget.candidates
+            .map((s) {
+              final n =
+                  s.propertyName ?? widget.propertyNames[s.propertyId] ?? '';
+              return _propertyGroup(n);
+            })
+            .toSet()
+            .toList()
+          ..sort();
 
     return AlertDialog(
       title: const Text('สร้างใบงานรวมจาก PM'),
@@ -1939,7 +1963,10 @@ class _BatchPmDialogState extends State<_BatchPmDialog> {
                   labelText: 'หมวดบ้าน',
                   isDense: true,
                   border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                 ),
                 items: [
                   const DropdownMenuItem(value: null, child: Text('ทั้งหมด')),
@@ -1994,10 +2021,14 @@ class _BatchPmDialogState extends State<_BatchPmDialog> {
                       itemBuilder: (ctx, i) {
                         final s = visible[i];
                         final propName =
-                            s.propertyName ?? widget.propertyNames[s.propertyId] ?? s.propertyId;
+                            s.propertyName ??
+                            widget.propertyNames[s.propertyId] ??
+                            s.propertyId;
                         final asset = _assetName(s);
                         final d = s.nextDueDate;
-                        final daysUntilDue = d.difference(DateTime.now()).inDays;
+                        final daysUntilDue = d
+                            .difference(DateTime.now())
+                            .inDays;
                         final isOverdue = daysUntilDue < 0;
                         final dueDateColor = isOverdue
                             ? Colors.red

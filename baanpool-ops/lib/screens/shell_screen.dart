@@ -146,7 +146,10 @@ class _ShellScreenState extends State<ShellScreen> {
   @override
   Widget build(BuildContext context) {
     final navItems = _getNavItems();
-    final currentIdx = _currentIndex(context, navItems).clamp(0, navItems.length - 1);
+    final currentIdx = _currentIndex(
+      context,
+      navItems,
+    ).clamp(0, navItems.length - 1);
     final isDesktop = MediaQuery.of(context).size.width >= 720;
 
     // มีเมนูเดียว (เช่น ช่าง เห็นแค่ใบงาน) → เต็มจอ ไม่ต้องมีแถบเมนู
@@ -174,7 +177,8 @@ class _ShellScreenState extends State<ShellScreen> {
                 child: Image.asset(
                   'logo/logo.png',
                   width: isWide ? 48 : 36,
-                  errorBuilder: (_, __, ___) => Icon(Icons.home_work, size: isWide ? 40 : 28),
+                  errorBuilder: (_, __, ___) =>
+                      Icon(Icons.home_work, size: isWide ? 40 : 28),
                 ),
               ),
               minWidth: 72,
@@ -247,7 +251,9 @@ class _ShellScreenState extends State<ShellScreen> {
             for (final item in items)
               ListTile(
                 leading: Icon(
-                  location.startsWith(item.path) ? item.selectedIcon : item.icon,
+                  location.startsWith(item.path)
+                      ? item.selectedIcon
+                      : item.icon,
                 ),
                 title: Text(item.label),
                 selected: location.startsWith(item.path),

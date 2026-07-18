@@ -53,9 +53,9 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('โหลดข้อมูลล้มเหลว: ${friendlyError(e)}')),
+        );
       }
     }
     if (mounted) setState(() => _loading = false);
@@ -106,9 +106,9 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('ลบล้มเหลว: ${friendlyError(e)}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ลบล้มเหลว: ${friendlyError(e)}')),
+        );
       }
     }
   }
@@ -117,9 +117,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
     if (!_canAddAssetsForProperty()) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('ไม่มีสิทธิ์เพิ่มอุปกรณ์ในบ้านนี้'),
-          ),
+          const SnackBar(content: Text('ไม่มีสิทธิ์เพิ่มอุปกรณ์ในบ้านนี้')),
         );
       }
       return;
