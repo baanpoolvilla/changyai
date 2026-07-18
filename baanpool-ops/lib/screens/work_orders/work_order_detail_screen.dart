@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -31,6 +32,8 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
   List<String> _ccNames = [];
   bool _loading = true;
   bool _hasExpense = false;
+  List<Map<String, dynamic>> _externalPhotos = [];
+  bool _creatingUploadLink = false;
 
   // Comments
   List<WorkOrderComment> _comments = [];
@@ -59,6 +62,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
     setState(() => _loading = true);
     _additionalPropertyNames = [];
     _ccNames = [];
+    _externalPhotos = [];
     try {
       final woData = await _service.getWorkOrder(widget.workOrderId);
       _workOrder = WorkOrder.fromJson(woData);
@@ -88,6 +92,15 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
             })
             .catchError((_) {
               _comments = [];
+            }),
+        _service
+            .getExternalWorkOrderPhotos(widget.workOrderId)
+            .then((photos) {
+              _externalPhotos = photos;
+            })
+            .catchError((_) {
+              // Migration 057 may not have been applied yet.
+              _externalPhotos = [];
             }),
       ];
 
@@ -232,7 +245,17 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
   }
 
   /// Show dialog requiring expense estimate + photo before marking as completed
-  void _showCompletionDialog() {
+  Future<void> _showCompletionDialog() async {
+    // ช่างอาจเพิ่งส่งรูปหลังจากเปิดหน้านี้ จึง refresh ก่อนตัดสินว่า
+    // ต้องบังคับแนบรูปจากผู้ดูแลอีกหรือไม่
+    try {
+      final photos = await _service.getExternalWorkOrderPhotos(
+        widget.workOrderId,
+      );
+      if (mounted) setState(() => _externalPhotos = photos);
+    } catch (_) {}
+    if (!mounted) return;
+
     // Reset completion images
     _completionImages.clear();
     _completionImageBytes.clear();
@@ -274,9 +297,11 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'กรุณากรอกประมาณการค่าใช้จ่ายและแนบรูปถ่ายก่อนกดยืนยัน',
-                    style: TextStyle(color: Colors.grey),
+                  Text(
+                    _externalPhotos.isNotEmpty
+                        ? 'มีรูปจากช่างภายนอกแล้ว กรุณากรอกประมาณการค่าใช้จ่ายก่อนกดยืนยัน'
+                        : 'กรุณากรอกประมาณการค่าใช้จ่ายและแนบรูปถ่ายก่อนกดยืนยัน',
+                    style: const TextStyle(color: Colors.grey),
                   ),
                   const SizedBox(height: 16),
 
@@ -361,6 +386,34 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
 
                   const SizedBox(height: 8),
 
+                  if (_externalPhotos.isNotEmpty) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle_outline,
+                            color: Colors.green.shade700,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'ใช้รูปจากช่างภายนอก ${_externalPhotos.length} รูปเป็นหลักฐานปิดงานได้',
+                              style: TextStyle(color: Colors.green.shade800),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
                   // Preview picked images
                   if (_completionImageBytes.isNotEmpty) ...[
                     SizedBox(
@@ -439,12 +492,14 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                     icon: const Icon(Icons.camera_alt),
                     label: Text(
                       _completionImageBytes.isEmpty
-                          ? 'แนบรูปภาพหลังแก้ไข *'
+                          ? (_externalPhotos.isNotEmpty
+                              ? 'แนบรูปเพิ่ม (ไม่บังคับ)'
+                              : 'แนบรูปภาพหลังแก้ไข *')
                           : 'เพิ่มรูป (${_completionImageBytes.length})',
                     ),
                   ),
 
-                  if (_completionImageBytes.isEmpty)
+                  if (_completionImageBytes.isEmpty && _externalPhotos.isEmpty)
                     const Padding(
                       padding: EdgeInsets.only(top: 8),
                       child: Text(
@@ -461,7 +516,9 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                 child: const Text('ยกเลิก'),
               ),
               FilledButton(
-                onPressed: (_completionImageBytes.isEmpty || !hasValidItem())
+                onPressed: ((_completionImageBytes.isEmpty &&
+                            _externalPhotos.isEmpty) ||
+                        !hasValidItem())
                     ? null
                     : () async {
                         final notes = buildNotesText();
@@ -578,6 +635,78 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
       }
     }
     if (mounted) setState(() => _addingComment = false);
+  }
+
+  Future<void> _createExternalUploadLink() async {
+    if (_creatingUploadLink) return;
+    setState(() => _creatingUploadLink = true);
+    try {
+      final data = await _service.createWorkOrderUploadLink(widget.workOrderId);
+      final token = data['token'] as String;
+      final current = Uri.base;
+      final baseUrl = (current.scheme == 'http' || current.scheme == 'https') &&
+              current.host.isNotEmpty
+          ? current.origin
+          : 'https://changyai.vercel.app';
+      final link = '$baseUrl/external-upload/$token';
+
+      await Clipboard.setData(ClipboardData(text: link));
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('สร้างลิงก์ส่งรูปแล้ว'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'ส่งลิงก์นี้ให้ช่างภายนอกได้โดยไม่ต้อง Login '
+                'ลิงก์ใช้ได้ 7 วัน หรือจนกว่าใบงานจะถูกปิด',
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.maxFinite,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: SelectableText(link),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'คัดลอกลิงก์ไว้ใน Clipboard แล้ว',
+                style: TextStyle(color: Colors.green, fontSize: 12),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'การสร้างลิงก์ใหม่จะยกเลิกลิงก์เดิมของใบงานนี้',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton.icon(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: link));
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              icon: const Icon(Icons.copy),
+              label: const Text('คัดลอกและปิด'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('สร้างลิงก์ไม่สำเร็จ: ${friendlyError(e)}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _creatingUploadLink = false);
+    }
   }
 
   @override
@@ -711,6 +840,60 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
               ),
             ),
 
+            // ─── ลิงก์ส่งรูปสำหรับช่างภายนอก ────────────────
+            if (!_authState.isTechnician &&
+                wo.status != WorkOrderStatus.completed &&
+                wo.status != WorkOrderStatus.cancelled) ...[
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.link,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'ให้ช่างภายนอกส่งรูป',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            SizedBox(height: 3),
+                            Text(
+                              'ช่างเปิดลิงก์และลงรูปได้โดยไม่ต้อง Login',
+                              style: TextStyle(color: Colors.grey, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton.icon(
+                        onPressed: _creatingUploadLink
+                            ? null
+                            : _createExternalUploadLink,
+                        icon: _creatingUploadLink
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.add_link, size: 18),
+                        label: const Text('สร้างลิงก์'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+
             // ─── ภาพก่อนแก้ไข ────────────────────────────────
             if (wo.photoUrls.isNotEmpty) ...[
               const SizedBox(height: 16),
@@ -754,6 +937,68 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, __, ___) =>
                                       const SizedBox(
+                                    width: 150,
+                                    height: 150,
+                                    child: Center(
+                                      child: Icon(Icons.broken_image),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+
+            // ─── รูปที่ช่างภายนอกส่งผ่าน public link ─────────
+            if (_externalPhotos.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.cloud_upload_outlined,
+                            size: 18,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'รูปจากช่างภายนอก (${_externalPhotos.length})',
+                            style: theme.textTheme.titleMedium,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 150,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _externalPhotos.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 8),
+                          itemBuilder: (context, index) {
+                            final url =
+                                _externalPhotos[index]['photo_url'] as String;
+                            return GestureDetector(
+                              onTap: () => _showFullImage(context, url),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  url,
+                                  width: 150,
+                                  height: 150,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const SizedBox(
                                     width: 150,
                                     height: 150,
                                     child: Center(

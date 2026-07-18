@@ -630,6 +630,85 @@ class SupabaseService {
     }
   }
 
+  // ─── External Work Order Photo Uploads ───────────────
+
+  /// สร้าง public upload token ใหม่สำหรับใบงาน
+  /// token เดิมของใบงานจะถูก revoke โดย database function อัตโนมัติ
+  Future<Map<String, dynamic>> createWorkOrderUploadLink(
+    String workOrderId,
+  ) async {
+    final result = await _client.rpc(
+      'create_work_order_upload_link',
+      params: {'p_work_order_id': workOrderId},
+    );
+    return _singleRpcRow(result);
+  }
+
+  /// อ่านข้อมูลสาธารณะที่จำเป็นสำหรับหน้าอัปโหลดโดยไม่ต้อง login
+  Future<Map<String, dynamic>?> getExternalUploadContext(String token) async {
+    final result = await _client.rpc(
+      'get_external_upload_context',
+      params: {'p_token': token},
+    );
+    if (result is List && result.isEmpty) return null;
+    if (result == null) return null;
+    return _singleRpcRow(result);
+  }
+
+  /// อัปโหลดรูปจาก public link และผูกไฟล์กับใบงานผ่าน RPC
+  Future<String> uploadExternalWorkOrderPhoto(
+    String token,
+    String originalName,
+    Uint8List bytes,
+  ) async {
+    final rawExt = originalName.contains('.')
+        ? originalName.split('.').last.toLowerCase()
+        : 'jpg';
+    final ext = const {'jpg', 'jpeg', 'png', 'webp', 'heic'}.contains(rawExt)
+        ? rawExt
+        : 'jpg';
+    final path =
+        'external-work-orders/$token/'
+        '${DateTime.now().microsecondsSinceEpoch}.$ext';
+
+    await _client.storage.from('photos').uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(contentType: _mimeFromPath(path)),
+        );
+    await _client.rpc(
+      'register_external_work_order_photo',
+      params: {'p_token': token, 'p_storage_path': path},
+    );
+    return _client.storage.from('photos').getPublicUrl(path);
+  }
+
+  /// รูปที่ช่างภายนอกส่งเข้ามา — RLS จำกัดตามสิทธิ์เห็นใบงาน
+  Future<List<Map<String, dynamic>>> getExternalWorkOrderPhotos(
+    String workOrderId,
+  ) async {
+    final data = await _client
+        .from('work_order_external_photos')
+        .select('id, storage_path, uploaded_at')
+        .eq('work_order_id', workOrderId)
+        .order('uploaded_at', ascending: true);
+    return data.map<Map<String, dynamic>>((row) {
+      final path = row['storage_path'] as String;
+      return {
+        ...row,
+        'photo_url': _client.storage.from('photos').getPublicUrl(path),
+      };
+    }).toList();
+  }
+
+  static Map<String, dynamic> _singleRpcRow(dynamic result) {
+    if (result is List && result.isNotEmpty) {
+      return Map<String, dynamic>.from(result.first as Map);
+    }
+    if (result is Map) return Map<String, dynamic>.from(result);
+    throw StateError('RPC did not return a row');
+  }
+
   // ─── Work Order Comments ─────────────────────────────
 
   /// Get all comments for a work order (with user info)

@@ -12,6 +12,7 @@ import '../screens/assets/asset_detail_screen.dart';
 import '../screens/work_orders/work_orders_list_screen.dart';
 import '../screens/work_orders/work_order_detail_screen.dart';
 import '../screens/work_orders/work_order_form_screen.dart';
+import '../screens/work_orders/external_work_order_upload_screen.dart';
 import '../screens/expenses/expenses_list_screen.dart';
 import '../screens/expenses/expense_form_screen.dart';
 import '../screens/expenses/expense_report_screen.dart';
@@ -32,12 +33,16 @@ final appRouter = GoRouter(
   initialLocation: '/',
   redirect: (context, state) {
     final isLoggedIn = Supabase.instance.client.auth.currentUser != null;
+    final isExternalUploadRoute =
+        state.uri.path.startsWith('/external-upload/');
     final isAuthRoute =
         state.uri.toString().startsWith('/login') ||
         state.uri.toString().startsWith('/auth');
 
     // Not logged in → go to login
-    if (!isLoggedIn && !isAuthRoute) return '/login';
+    if (!isLoggedIn && !isAuthRoute && !isExternalUploadRoute) {
+      return '/login';
+    }
     // Logged in but on login page → go to dashboard or work-orders
     if (isLoggedIn && isAuthRoute) {
       final authState = AuthStateService();
@@ -73,6 +78,14 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/auth/callback',
       builder: (context, state) => const AuthCallbackScreen(),
+    ),
+
+    // Public photo-only upload page for external technicians
+    GoRoute(
+      path: '/external-upload/:token',
+      builder: (context, state) => ExternalWorkOrderUploadScreen(
+        token: state.pathParameters['token']!,
+      ),
     ),
 
     // Main shell with bottom navigation
