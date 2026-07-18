@@ -344,7 +344,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                   FilledButton.tonalIcon(
                     onPressed: _showAddAssetDialog,
                     icon: const Icon(Icons.add, size: 18),
-                    label: const Text('เพิ่มอุปกรณ์'),
+                    label: const Text('อุปกรณ์ที่จะ PM'),
                   ),
               ],
             ),

@@ -93,9 +93,9 @@ class _ShellScreenState extends State<ShellScreen> {
       items.add(
         _NavItem(
           path: '/pm',
-          icon: Icons.schedule_outlined,
-          selectedIcon: Icons.schedule,
-          label: 'PM',
+          icon: Icons.home_repair_service_outlined,
+          selectedIcon: Icons.home_repair_service,
+          label: 'บำรุงรักษา',
         ),
       );
 

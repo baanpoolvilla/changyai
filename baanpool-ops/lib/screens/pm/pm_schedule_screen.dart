@@ -861,13 +861,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          _selectedPropertyId != null
-              ? 'PM: ${_propertyNames[_selectedPropertyId] ?? _selectedPropertyId}'
-              : _selectedPropertyGroup != null
-              ? 'PM: $_selectedPropertyGroup'
-              : 'Preventive Maintenance',
-        ),
+        title: const Text('PM Dashboard'),
         actions: [
           IconButton(
             icon: const Icon(Icons.view_list_rounded),
@@ -881,77 +875,15 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // แดชบอร์ด: สรุปตามสถานะ กดเพื่อกรอง
+                _buildDashboardOverview(theme),
                 _buildStatBar(theme),
-                // Property filter chips
                 if (filterGroups.isNotEmpty)
-                  _alignedBar(
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          height: 44,
-                          child: ListView(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: FilterChip(
-                                  label: const Text('ทั้งหมด'),
-                                  selected: _selectedPropertyGroup == null &&
-                                      _selectedPropertyId == null,
-                                  onSelected: (_) => _resetPropertyFilters(),
-                                ),
-                              ),
-                              ...filterGroups.map(
-                                (group) => Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: FilterChip(
-                                    label: Text(group),
-                                    selected: _selectedPropertyGroup == group,
-                                    onSelected: (_) => _togglePropertyGroup(group),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_selectedPropertyGroup != null &&
-                            visiblePropertyOptions.isNotEmpty)
-                          SizedBox(
-                            height: 44,
-                            child: ListView(
-                              scrollDirection: Axis.horizontal,
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: FilterChip(
-                                    label: const Text('ทุกหลังในกลุ่ม'),
-                                    selected: _selectedPropertyId == null,
-                                    onSelected: (_) {
-                                      setState(() => _selectedPropertyId = null);
-                                    },
-                                  ),
-                                ),
-                                ...visiblePropertyOptions.map(
-                                  (entry) => Padding(
-                                    padding: const EdgeInsets.only(right: 8),
-                                    child: FilterChip(
-                                      label: Text(entry.value),
-                                      selected: _selectedPropertyId == entry.key,
-                                      onSelected: (_) => _toggleProperty(entry.key),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
+                  _buildFilterPanel(
+                    theme,
+                    filterGroups,
+                    visiblePropertyOptions,
                   ),
-
-                // Schedule list
+                _buildScheduleListHeader(theme, displayed.length),
                 Expanded(
                   child: displayed.isEmpty
                       ? Center(
@@ -969,7 +901,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                                 _selectedStatus != null
                                     ? 'ไม่มี PM ที่${_selectedStatus!.label}'
                                     : _schedules.isEmpty
-                                    ? 'ยังไม่มี PM Schedule'
+                                    ? 'ยังไม่มีแผน PM'
                                     : 'ไม่มี PM ในบ้านที่เลือก',
                               ),
                               if (_selectedStatus != null) ...[
@@ -1014,7 +946,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
             heroTag: 'create_pm',
             onPressed: _showCreatePmDialog,
             icon: const Icon(Icons.add),
-            label: const Text('สร้าง PM'),
+            label: const Text('เพิ่ม PM'),
           ),
         ],
       ),
@@ -1123,7 +1055,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
 
     return Card(
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         onTap: s.assetId != null
             ? () async {
                 await context.push('/assets/${s.assetId}');
@@ -1277,6 +1209,278 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     );
   }
 
+  /// ส่วนสรุปบนสุดทำหน้าที่บอก scope ของข้อมูลและตัวเลขรวมในพริบตาเดียว
+  Widget _buildDashboardOverview(ThemeData theme) {
+    final base = _propertyFiltered;
+    final propertyCount = base.map((s) => s.propertyId).toSet().length;
+    final assetCount = base
+        .where((s) => s.assetId != null)
+        .map((s) => s.assetId)
+        .toSet()
+        .length;
+    final scope = _selectedPropertyId != null
+        ? _propertyNames[_selectedPropertyId] ?? 'บ้านที่เลือก'
+        : _selectedPropertyGroup != null
+        ? 'โครงการ $_selectedPropertyGroup'
+        : 'ทุกโครงการ';
+
+    return _alignedBar(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 16),
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0F766E), Color(0xFF0D9488)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: theme.colorScheme.primary.withValues(alpha: 0.18),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 620;
+              return Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.home_repair_service_rounded,
+                      color: Colors.white,
+                      size: 27,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          scope,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          'ติดตามแผนบำรุงรักษาและงานที่ต้องดำเนินการ',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.white.withValues(alpha: 0.82),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _overviewMetric('${base.length}', 'แผน PM'),
+                  if (!compact) ...[
+                    const SizedBox(width: 24),
+                    _overviewMetric('$propertyCount', 'บ้าน'),
+                    const SizedBox(width: 24),
+                    _overviewMetric('$assetCount', 'อุปกรณ์'),
+                  ],
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _overviewMetric(String value, String label) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            height: 1,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.78),
+            fontSize: 11,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterPanel(
+    ThemeData theme,
+    List<String> filterGroups,
+    List<MapEntry<String, String>> visiblePropertyOptions,
+  ) {
+    return _alignedBar(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.tune_rounded,
+                      size: 18,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'กรองตามบ้าน',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (_selectedPropertyGroup != null ||
+                        _selectedPropertyId != null)
+                      TextButton.icon(
+                        onPressed: _resetPropertyFilters,
+                        icon: const Icon(Icons.restart_alt, size: 16),
+                        label: const Text('ล้างตัวกรอง'),
+                      ),
+                  ],
+                ),
+                SizedBox(
+                  height: 42,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          avatar: const Icon(Icons.grid_view_rounded, size: 16),
+                          label: const Text('ทั้งหมด'),
+                          selected: _selectedPropertyGroup == null &&
+                              _selectedPropertyId == null,
+                          onSelected: (_) => _resetPropertyFilters(),
+                        ),
+                      ),
+                      ...filterGroups.map(
+                        (group) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: FilterChip(
+                            label: Text(group),
+                            selected: _selectedPropertyGroup == group,
+                            onSelected: (_) => _togglePropertyGroup(group),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_selectedPropertyGroup != null &&
+                    visiblePropertyOptions.isNotEmpty) ...[
+                  const Divider(height: 10),
+                  SizedBox(
+                    height: 42,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: FilterChip(
+                            label: const Text('ทุกหลังในโครงการ'),
+                            selected: _selectedPropertyId == null,
+                            onSelected: (_) {
+                              setState(() => _selectedPropertyId = null);
+                            },
+                          ),
+                        ),
+                        ...visiblePropertyOptions.map(
+                          (entry) => Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: FilterChip(
+                              label: Text(entry.value),
+                              selected: _selectedPropertyId == entry.key,
+                              onSelected: (_) => _toggleProperty(entry.key),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScheduleListHeader(ThemeData theme, int resultCount) {
+    final statusLabel = _selectedStatus?.label;
+    return _alignedBar(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(2, 14, 2, 8),
+        child: Row(
+          children: [
+            Text(
+              statusLabel == null ? 'รายการ PM' : 'รายการ: $statusLabel',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '$resultCount รายการ',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const Spacer(),
+            if (_selectedStatus != null)
+              IconButton(
+                tooltip: 'แสดงทุกสถานะ',
+                onPressed: () => setState(() => _selectedStatus = null),
+                icon: const Icon(Icons.filter_alt_off_rounded),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// แดชบอร์ด: แถวตัวเลขสรุปตามสถานะ — กดเพื่อกรองรายการด้านล่าง
   /// นับจาก _propertyFiltered เพื่อให้ตัวเลขทุกช่องยังเห็นครบ
   /// แม้กำลังกรองสถานะใดสถานะหนึ่งอยู่
@@ -1289,25 +1493,43 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
       counts[_statusOf(s)] = (counts[_statusOf(s)] ?? 0) + 1;
     }
 
-    // ซ่อนช่องที่เป็น 0 เพื่อไม่ให้แถวรก ยกเว้นช่องที่กำลังเลือกอยู่
-    final visible = _PmStatus.values
-        .where((s) => counts[s]! > 0 || _selectedStatus == s)
-        .toList();
-    if (visible.isEmpty) return const SizedBox.shrink();
+    // Dashboard แสดงทุกสถานะเสมอ รวมถึงค่า 0 เพื่อให้ภาพรวมไม่เปลี่ยนตำแหน่ง
+    final visible = _PmStatus.values;
 
     return _alignedBar(
-      child: SizedBox(
-        height: 78,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.only(top: 10, bottom: 2),
-          children: [
-            for (final st in visible)
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: _statTile(theme, st, counts[st]!),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth >= 760) {
+              return Row(
+                children: [
+                  for (var index = 0; index < visible.length; index++) ...[
+                    if (index > 0) const SizedBox(width: 10),
+                    Expanded(
+                      child: _statTile(
+                        theme,
+                        visible[index],
+                        counts[visible[index]]!,
+                        width: double.infinity,
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            }
+
+            return SizedBox(
+              height: 94,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: visible.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (context, index) =>
+                    _statTile(theme, visible[index], counts[visible[index]]!),
               ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -1315,7 +1537,12 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
 
   /// stat tile ตาม spec: มีแค่ label + value
   /// เลือกอยู่ = พื้นอ่อนสีสถานะ + ขอบหนา (ไม่ได้บอกด้วยสีอย่างเดียว มี icon กำกับ)
-  Widget _statTile(ThemeData theme, _PmStatus st, int count) {
+  Widget _statTile(
+    ThemeData theme,
+    _PmStatus st,
+    int count, {
+    double width = 150,
+  }) {
     final selected = _selectedStatus == st;
     return Tooltip(
       message: st.hint,
@@ -1326,8 +1553,9 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
           borderRadius: BorderRadius.circular(14),
           onTap: () => setState(() => _selectedStatus = selected ? null : st),
           child: Container(
-            width: 128,
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            width: width,
+            height: 94,
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
               border: Border.all(

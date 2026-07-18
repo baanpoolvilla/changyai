@@ -797,13 +797,13 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'PM Schedule (${_schedules.length})',
+                  'แผน PM (${_schedules.length})',
                   style: theme.textTheme.titleMedium,
                 ),
                 FilledButton.tonalIcon(
                   onPressed: _showAddScheduleDialog,
                   icon: const Icon(Icons.add, size: 18),
-                  label: const Text('เพิ่ม Schedule'),
+                  label: const Text('เพิ่ม PM'),
                 ),
               ],
             ),
@@ -822,7 +822,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                           color: theme.colorScheme.outline,
                         ),
                         const SizedBox(height: 8),
-                        const Text('ยังไม่มี PM Schedule'),
+                        const Text('ยังไม่มีแผน PM'),
                       ],
                     ),
                   ),
