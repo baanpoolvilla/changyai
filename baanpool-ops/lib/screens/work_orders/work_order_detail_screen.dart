@@ -637,6 +637,17 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
     if (mounted) setState(() => _addingComment = false);
   }
 
+  /// คัดลอกข้อความไป clipboard แบบไม่ throw — คืน true ถ้าสำเร็จ
+  /// เบราว์เซอร์มือถือบล็อกได้เมื่อ user gesture หมดอายุ จึงห้ามให้ล้ม flow
+  Future<bool> _copyToClipboard(String text) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _createExternalUploadLink() async {
     if (_creatingUploadLink) return;
     setState(() => _creatingUploadLink = true);
@@ -650,7 +661,10 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
           : 'https://changyai.vercel.app';
       final link = '$baseUrl/external-upload/$token';
 
-      await Clipboard.setData(ClipboardData(text: link));
+      // คัดลอกแบบ best-effort — เบราว์เซอร์มือถือมักบล็อก clipboard หลังจาก
+      // มี await คั่น (user gesture หมดอายุ) ต้องไม่ให้มันทำทั้ง flow ล้ม
+      // ไม่งั้นลิงก์สร้างสำเร็จแล้วแต่ขึ้น error ผู้ใช้เข้าใจว่าสร้างไม่ได้
+      final copied = await _copyToClipboard(link);
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -675,9 +689,14 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                 child: SelectableText(link),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'คัดลอกลิงก์ไว้ใน Clipboard แล้ว',
-                style: TextStyle(color: Colors.green, fontSize: 12),
+              Text(
+                copied
+                    ? 'คัดลอกลิงก์ไว้แล้ว'
+                    : 'แตะปุ่ม "คัดลอกลิงก์" ด้านล่าง หรือกดค้างที่ลิงก์เพื่อคัดลอกเอง',
+                style: TextStyle(
+                  color: copied ? Colors.green : Colors.grey,
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(height: 4),
               const Text(
@@ -687,13 +706,30 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
             ],
           ),
           actions: [
-            TextButton.icon(
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('ปิด'),
+            ),
+            // ปุ่มนี้เกิดจาก gesture ตรงๆ (แตะปุ่ม) clipboard จึงมักผ่านบนมือถือ
+            FilledButton.icon(
               onPressed: () async {
-                await Clipboard.setData(ClipboardData(text: link));
-                if (ctx.mounted) Navigator.pop(ctx);
+                final ok = await _copyToClipboard(link);
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        ok
+                            ? 'คัดลอกลิงก์แล้ว'
+                            : 'คัดลอกอัตโนมัติไม่ได้ กรุณากดค้างที่ลิงก์เพื่อคัดลอกเอง',
+                      ),
+                    ),
+                  );
+                }
               },
-              icon: const Icon(Icons.copy),
-              label: const Text('คัดลอกและปิด'),
+              icon: const Icon(Icons.copy, size: 18),
+              label: const Text('คัดลอกลิงก์'),
             ),
           ],
         ),
