@@ -26,6 +26,8 @@ import '../screens/contractors/contractor_detail_screen.dart';
 import '../screens/purchase_orders/purchase_orders_list_screen.dart';
 import '../screens/purchase_orders/purchase_order_form_screen.dart';
 import '../screens/purchase_orders/purchase_order_detail_screen.dart';
+import '../screens/purchase_orders/equipment_return_form_screen.dart';
+import '../screens/purchase_orders/equipment_return_detail_screen.dart';
 import '../screens/shell_screen.dart';
 import '../services/auth_state_service.dart';
 
@@ -249,6 +251,19 @@ final appRouter = GoRouter(
             GoRoute(
               path: 'new',
               builder: (context, state) => const PurchaseOrderFormScreen(),
+            ),
+            // คืนของ / ของมีปัญหา (ต้องมาก่อน ':id')
+            GoRoute(
+              path: 'returns/new',
+              builder: (context, state) => EquipmentReturnFormScreen(
+                initialPoId: state.uri.queryParameters['poId'],
+              ),
+            ),
+            GoRoute(
+              path: 'returns/:id',
+              builder: (context, state) => EquipmentReturnDetailScreen(
+                returnId: state.pathParameters['id']!,
+              ),
             ),
             GoRoute(
               path: ':id',

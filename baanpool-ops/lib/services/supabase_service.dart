@@ -1026,7 +1026,8 @@ class SupabaseService {
     String? propertyId,
     String? createdBy,
   }) async {
-    var query = _client.from('purchase_orders').select('*, creator:created_by(full_name), assignee:po_assigned_to(full_name)');
+    var query = _client.from('purchase_orders').select(
+        '*, creator:created_by(full_name), assignee:po_assigned_to(full_name), po_creator:po_created_by(full_name), receiver:received_by(full_name)');
     if (status != null) query = query.eq('status', status);
     if (propertyId != null) query = query.eq('property_id', propertyId);
     if (createdBy != null) query = query.eq('created_by', createdBy);
@@ -1034,7 +1035,8 @@ class SupabaseService {
   }
 
   Future<Map<String, dynamic>> getPurchaseOrder(String id) async {
-    return await _client.from('purchase_orders').select('*, creator:created_by(full_name), assignee:po_assigned_to(full_name)').eq('id', id).single();
+    return await _client.from('purchase_orders').select(
+        '*, creator:created_by(full_name), assignee:po_assigned_to(full_name), po_creator:po_created_by(full_name), receiver:received_by(full_name)').eq('id', id).single();
   }
 
   Future<void> createPurchaseOrder(Map<String, dynamic> data) async {
@@ -1063,5 +1065,44 @@ class SupabaseService {
 
   Future<void> createPOComment(Map<String, dynamic> data) async {
     await _client.from('purchase_order_comments').insert(data);
+  }
+
+  // ─── Equipment Returns (คืนของ / ของมีปัญหา) ──────────
+
+  Future<List<Map<String, dynamic>>> getEquipmentReturns({
+    String? status,
+    String? purchaseOrderId,
+  }) async {
+    var query = _client.from('equipment_returns').select(
+        '*, purchase_order:purchase_order_id(title), creator:created_by(full_name), resolver:resolved_by(full_name)');
+    if (status != null) query = query.eq('status', status);
+    if (purchaseOrderId != null) {
+      query = query.eq('purchase_order_id', purchaseOrderId);
+    }
+    return await query.order('created_at', ascending: false);
+  }
+
+  Future<Map<String, dynamic>> getEquipmentReturn(String id) async {
+    return await _client
+        .from('equipment_returns')
+        .select(
+            '*, purchase_order:purchase_order_id(title, property_id), creator:created_by(full_name), resolver:resolved_by(full_name)')
+        .eq('id', id)
+        .single();
+  }
+
+  Future<void> createEquipmentReturn(Map<String, dynamic> data) async {
+    final userId = _client.auth.currentUser?.id;
+    final d = userId != null ? {...data, 'created_by': userId} : data;
+    await _client.from('equipment_returns').insert(d);
+  }
+
+  Future<void> updateEquipmentReturn(
+      String id, Map<String, dynamic> data) async {
+    await _client.from('equipment_returns').update(data).eq('id', id);
+  }
+
+  Future<void> deleteEquipmentReturn(String id) async {
+    await _client.from('equipment_returns').delete().eq('id', id);
   }
 }

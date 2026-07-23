@@ -3,7 +3,9 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/purchase_order.dart';
+import '../../models/user.dart';
 import '../../services/supabase_service.dart';
+import '../../services/auth_state_service.dart';
 import '../../utils/error_message.dart';
 
 class PurchaseOrderFormScreen extends StatefulWidget {
@@ -16,6 +18,7 @@ class PurchaseOrderFormScreen extends StatefulWidget {
 
 class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
   final _service = SupabaseService(Supabase.instance.client);
+  final _authState = AuthStateService();
   final _formKey = GlobalKey<FormState>();
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
@@ -27,16 +30,31 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
   String? _selectedPropertyId;
   List<Map<String, dynamic>> _properties = [];
 
+  // ─── เปิด PO เอง (เฉพาะ CEO/Superadmin/ผู้จัดการ) ───────
+  // true  = เปิด PO เลย (สร้างที่สถานะ approved ข้ามการรออนุมัติ)
+  // false = เปิด PR ตามปกติ (รอ CEO อนุมัติ)
+  bool _openAsPo = false;
+  String? _poAssigneeId;
+  List<Map<String, dynamic>> _users = [];
+
   bool _isEmergency = false;
   final List<XFile> _pickedImages = [];
   final _picker = ImagePicker();
 
   final List<_ItemRow> _itemRows = [];
 
+  /// role ที่เปิด PO ได้เลยโดยไม่ต้องขออนุมัติ
+  bool get _canOpenPo {
+    final r = _authState.currentRole;
+    return r == UserRole.admin || r == UserRole.owner || r == UserRole.manager;
+  }
+
   @override
   void initState() {
     super.initState();
+    _openAsPo = _canOpenPo; // role สูงเริ่มที่ "เปิด PO เลย"
     _loadProperties();
+    if (_canOpenPo) _loadUsers();
     _addItemRow();
   }
 
@@ -62,6 +80,13 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
     } catch (_) {
       if (mounted) setState(() => _loadingProps = false);
     }
+  }
+
+  Future<void> _loadUsers() async {
+    try {
+      final data = await _service.getUsers();
+      if (mounted) setState(() => _users = data);
+    } catch (_) {}
   }
 
   void _addItemRow() {
@@ -131,6 +156,10 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
         prImageUrls.add(url);
       }
 
+      // เปิด PO เลย = ข้ามการอนุมัติ สร้างที่สถานะ approved
+      final openPo = _openAsPo && _canOpenPo && !_isEmergency;
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+
       await _service.createPurchaseOrder({
         'title': _titleCtrl.text.trim(),
         'description': _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
@@ -138,14 +167,23 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
         'items': items,
         'total_price': totalPrice,
         'notes': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-        'status': 'pending',
+        'status': openPo ? 'approved' : 'pending',
+        if (openPo) 'po_assigned_to': _poAssigneeId,
+        if (openPo) 'po_created_by': currentUserId,
+        if (openPo) 'po_created_at': now.toIso8601String(),
         'is_emergency_purchase': _isEmergency,
         'emergency_reason': _isEmergency && _emergencyReasonCtrl.text.trim().isNotEmpty
             ? _emergencyReasonCtrl.text.trim()
             : null,
         'pr_image_urls': prImageUrls,
       });
-      if (mounted) context.pop();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(openPo
+                ? 'เปิด PO เรียบร้อย — มอบหมายให้ไปซื้อได้เลย'
+                : 'เปิด PR เรียบร้อย — รอ CEO อนุมัติ')));
+        context.pop();
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -161,7 +199,10 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('เปิด PR (คำขอซื้ออุปกรณ์)')),
+      appBar: AppBar(
+          title: Text(_openAsPo
+              ? 'เปิด PO (สั่งซื้ออุปกรณ์)'
+              : 'เปิด PR (คำขอซื้ออุปกรณ์)')),
       body: _loadingProps
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -171,16 +212,72 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // ─── เลือกเปิด PR หรือ PO (เฉพาะ role สูง) ───
+                    if (_canOpenPo) ...[
+                      SegmentedButton<bool>(
+                        segments: const [
+                          ButtonSegment(
+                            value: false,
+                            icon: Icon(Icons.receipt_long_outlined, size: 18),
+                            label: Text('เปิด PR'),
+                          ),
+                          ButtonSegment(
+                            value: true,
+                            icon: Icon(Icons.assignment_turned_in_outlined,
+                                size: 18),
+                            label: Text('เปิด PO เลย'),
+                          ),
+                        ],
+                        selected: {_openAsPo},
+                        onSelectionChanged: (s) => setState(() {
+                          _openAsPo = s.first;
+                          if (_openAsPo) _isEmergency = false;
+                        }),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _openAsPo
+                            ? 'เปิด PO เลย — ข้ามการรออนุมัติ มอบหมายคนไปซื้อได้ทันที'
+                            : 'เปิด PR — ส่งให้ CEO อนุมัติก่อน',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.colorScheme.outline),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     TextFormField(
                       controller: _titleCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'ชื่อ PR *',
+                      decoration: InputDecoration(
+                        labelText: _openAsPo ? 'ชื่อ PO *' : 'ชื่อ PR *',
                         hintText: 'เช่น สั่งซื้ออุปกรณ์ซ่อมแอร์',
                       ),
                       validator: (v) =>
                           v == null || v.trim().isEmpty ? 'กรุณากรอก' : null,
                     ),
                     const SizedBox(height: 12),
+                    // ─── มอบหมายผู้ไปซื้อ (เฉพาะตอนเปิด PO เลย) ───
+                    if (_openAsPo) ...[
+                      DropdownButtonFormField<String>(
+                        value: _poAssigneeId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'มอบหมายให้ไปซื้อ',
+                          prefixIcon: Icon(Icons.assignment_ind_outlined),
+                        ),
+                        items: [
+                          const DropdownMenuItem(
+                              value: null, child: Text('— ยังไม่ระบุ —')),
+                          ..._users.map((u) => DropdownMenuItem(
+                                value: u['id'] as String,
+                                child: Text(
+                                  '${u['full_name']} (${UserRole.fromString(u['role'] as String).displayName})',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              )),
+                        ],
+                        onChanged: (v) => setState(() => _poAssigneeId = v),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     DropdownButtonFormField<String>(
                       value: _selectedPropertyId,
                       decoration:
@@ -226,7 +323,9 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                     Text(
                       _isEmergency
                           ? 'ใส่ชื่ออุปกรณ์ จำนวน และราคาที่จ่ายไปแล้ว'
-                          : 'ใส่ชื่ออุปกรณ์ — CEO จะใส่จำนวนและราคาตอนอนุมัติ',
+                          : _openAsPo
+                              ? 'ใส่ชื่ออุปกรณ์ — ผู้รับ PO จะกรอกจำนวนและราคาตอนไปซื้อ'
+                              : 'ใส่ชื่ออุปกรณ์ — CEO จะใส่จำนวนและราคาตอนอนุมัติ',
                       style: theme.textTheme.bodySmall
                           ?.copyWith(color: theme.colorScheme.outline),
                     ),
@@ -339,8 +438,9 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                     ],
                     const SizedBox(height: 20),
 
-                    // Emergency section
-                    Container(
+                    // Emergency section — ซ่อนเมื่อเปิด PO เลย
+                    if (!_openAsPo)
+                      Container(
                       decoration: BoxDecoration(
                         color: _isEmergency
                             ? Colors.red.shade50
@@ -421,13 +521,17 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
                                 child: CircularProgressIndicator(
                                     strokeWidth: 2, color: Colors.white),
                               )
-                            : Icon(_isEmergency
-                                ? Icons.warning_amber
-                                : Icons.send_outlined),
-                        label: Text(_isEmergency
-                            ? 'เปิด PR (ฉุกเฉิน) — ส่งให้ CEO อนุมัติ'
-                            : 'เปิด PR — ส่งให้ CEO อนุมัติ'),
-                        style: _isEmergency
+                            : Icon(_openAsPo
+                                ? Icons.assignment_turned_in
+                                : _isEmergency
+                                    ? Icons.warning_amber
+                                    : Icons.send_outlined),
+                        label: Text(_openAsPo
+                            ? 'เปิด PO — มอบหมายให้ไปซื้อ'
+                            : _isEmergency
+                                ? 'เปิด PR (ฉุกเฉิน) — ส่งให้ CEO อนุมัติ'
+                                : 'เปิด PR — ส่งให้ CEO อนุมัติ'),
+                        style: _isEmergency && !_openAsPo
                             ? FilledButton.styleFrom(
                                 backgroundColor: Colors.red.shade700)
                             : null,

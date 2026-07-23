@@ -114,21 +114,32 @@ class _PurchaseOrderDetailScreenState
     if (mounted) setState(() => _commentLoading = false);
   }
 
-  Future<void> _updateStatus(String newStatus) async {
+  /// หลังทำ action สำเร็จ → เด้งกลับหน้ารายการสั่งซื้อ (ไม่ค้างที่สเต็ปถัดไป)
+  void _popWith(String message) {
+    if (!mounted) return;
+    if (context.canPop()) {
+      context.pop(message);
+    } else {
+      context.go('/purchase-orders');
+    }
+  }
+
+  Future<void> _updateStatus(String newStatus,
+      {String message = 'อัพเดตสถานะแล้ว'}) async {
     setState(() => _actionLoading = true);
     try {
       await _service.updatePurchaseOrder(widget.orderId, {
         'status': newStatus,
         'updated_at': DateTime.now().toIso8601String(),
       });
-      await _load();
+      _popWith(message);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('อัพเดตล้มเหลว: ${friendlyError(e)}')));
+        setState(() => _actionLoading = false);
       }
     }
-    if (mounted) setState(() => _actionLoading = false);
   }
 
   // ─── CEO อนุมัติปกติ: เลือกผู้รับ PO (ไม่ใส่ราคา) ───────
@@ -198,24 +209,23 @@ class _PurchaseOrderDetailScreenState
 
     setState(() => _actionLoading = true);
     try {
+      final now = DateTime.now();
+      final uid = Supabase.instance.client.auth.currentUser?.id;
       await _service.updatePurchaseOrder(widget.orderId, {
         'status': 'approved',
         'po_assigned_to': selectedAssigneeId,
-        'updated_at': DateTime.now().toIso8601String(),
+        'po_created_by': uid,
+        'po_created_at': now.toIso8601String(),
+        'updated_at': now.toIso8601String(),
       });
-      await _load();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('อนุมัติและมอบ PO เรียบร้อย')),
-        );
-      }
+      _popWith('อนุมัติและมอบ PO เรียบร้อย');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('อนุมัติล้มเหลว: ${friendlyError(e)}')));
+        setState(() => _actionLoading = false);
       }
     }
-    if (mounted) setState(() => _actionLoading = false);
   }
 
   // ─── CEO อนุมัติฉุกเฉิน: ยืนยันอย่างเดียว → received ───────
@@ -295,24 +305,22 @@ class _PurchaseOrderDetailScreenState
     setState(() => _actionLoading = true);
     try {
       final now = DateTime.now();
+      final uid = Supabase.instance.client.auth.currentUser?.id;
       await _service.updatePurchaseOrder(widget.orderId, {
         'status': 'received',
+        'received_by': uid,
+        'received_at': now.toIso8601String(),
         'updated_at': now.toIso8601String(),
       });
       if (total > 0) await _createExpense(total, now, suffix: '(ฉุกเฉิน)');
-      await _load();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('อนุมัติ PR ฉุกเฉิน — บันทึกเสร็จสิ้นแล้ว')));
-      }
+      _popWith('อนุมัติ PR ฉุกเฉิน — บันทึกเสร็จสิ้นแล้ว');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('อนุมัติล้มเหลว: ${friendlyError(e)}')));
+        setState(() => _actionLoading = false);
       }
     }
-    if (mounted) setState(() => _actionLoading = false);
   }
 
   // ─── ยืนยันดำเนินการ: ราคา + รูป PO → ordered + expense ──────
@@ -425,18 +433,14 @@ class _PurchaseOrderDetailScreenState
         'updated_at': now.toIso8601String(),
       });
       if (totalPrice > 0) await _createExpense(totalPrice, now);
-      await _load();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('ยืนยันการสั่งซื้อเรียบร้อยแล้ว')));
-      }
+      _popWith('ยืนยันการสั่งซื้อเรียบร้อยแล้ว');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: ${friendlyError(e)}')));
+        setState(() => _actionLoading = false);
       }
     }
-    if (mounted) setState(() => _actionLoading = false);
   }
 
   // ─── รับของ: แนบรูปใบเสร็จอย่างเดียว → received ──────────
@@ -484,6 +488,7 @@ class _PurchaseOrderDetailScreenState
     setState(() => _actionLoading = true);
     try {
       final now = DateTime.now();
+      final uid = Supabase.instance.client.auth.currentUser?.id;
       final existingUrls = _order?.receiptImageUrls ?? [];
       final newUrls = await _uploadImages(capturedImages, now);
       final allUrls = [...existingUrls, ...newUrls];
@@ -492,20 +497,18 @@ class _PurchaseOrderDetailScreenState
         'status': 'received',
         if (allUrls.isNotEmpty) 'receipt_image_url': allUrls.first,
         'receipt_image_urls': allUrls,
+        'received_by': uid,
+        'received_at': now.toIso8601String(),
         'updated_at': now.toIso8601String(),
       });
-      await _load();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('บันทึกการรับของเรียบร้อยแล้ว')));
-      }
+      _popWith('บันทึกการรับของเรียบร้อยแล้ว');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: ${friendlyError(e)}')));
+        setState(() => _actionLoading = false);
       }
     }
-    if (mounted) setState(() => _actionLoading = false);
   }
 
   // ─── [Backward compat] Self-purchase: ราคา + รูป ─────────
@@ -574,6 +577,7 @@ class _PurchaseOrderDetailScreenState
     setState(() => _actionLoading = true);
     try {
       final now = DateTime.now();
+      final uid = Supabase.instance.client.auth.currentUser?.id;
       final existingUrls = _order?.receiptImageUrls ?? [];
       final newUrls = await _uploadImages(capturedImages, now);
       final allUrls = [...existingUrls, ...newUrls];
@@ -586,23 +590,21 @@ class _PurchaseOrderDetailScreenState
         'receipt_image_urls': allUrls,
         'items': updatedItems,
         'total_price': totalPrice,
+        'received_by': uid,
+        'received_at': now.toIso8601String(),
         'updated_at': now.toIso8601String(),
       });
       if (totalPrice > 0) {
         await _createExpense(totalPrice, now, suffix: '(ซื้อเอง)');
       }
-      await _load();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('บันทึกการรับของเรียบร้อยแล้ว')));
-      }
+      _popWith('บันทึกการรับของเรียบร้อยแล้ว');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('บันทึกล้มเหลว: ${friendlyError(e)}')));
+        setState(() => _actionLoading = false);
       }
     }
-    if (mounted) setState(() => _actionLoading = false);
   }
 
   // ─── Helpers ──────────────────────────────────────────────
@@ -970,17 +972,10 @@ class _PurchaseOrderDetailScreenState
                                 Text(_order!.description!,
                                     style: theme.textTheme.bodyMedium),
                               ],
-                              const SizedBox(height: 8),
-                              _InfoRow(
-                                  icon: Icons.person_outline,
-                                  text:
-                                      'เปิด PR โดย: ${_order!.createdByName ?? 'ไม่ทราบ'}'),
-                              const SizedBox(height: 4),
-                              Text(
-                                'สร้างเมื่อ ${formatThaiDate(_order!.createdAt)}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.outline),
-                              ),
+                              const SizedBox(height: 12),
+                              const Divider(height: 1),
+                              const SizedBox(height: 10),
+                              _StateTimeline(_order!),
                             ],
                           ),
                         ),
@@ -1243,8 +1238,8 @@ class _PurchaseOrderDetailScreenState
                             const SizedBox(width: 12),
                             Expanded(
                               child: OutlinedButton.icon(
-                                onPressed: () =>
-                                    _updateStatus('cancelled'),
+                                onPressed: () => _updateStatus('cancelled',
+                                    message: 'ปฏิเสธคำขอแล้ว'),
                                 icon: const Icon(Icons.close),
                                 label: const Text('ปฏิเสธ'),
                                 style: OutlinedButton.styleFrom(
@@ -1271,8 +1266,8 @@ class _PurchaseOrderDetailScreenState
                             const SizedBox(width: 12),
                             Expanded(
                               child: OutlinedButton.icon(
-                                onPressed: () =>
-                                    _updateStatus('cancelled'),
+                                onPressed: () => _updateStatus('cancelled',
+                                    message: 'ปฏิเสธคำขอแล้ว'),
                                 icon: const Icon(Icons.close),
                                 label: const Text('ปฏิเสธ'),
                                 style: OutlinedButton.styleFrom(
@@ -1552,6 +1547,64 @@ class _InfoRow extends StatelessWidget {
                   .bodyMedium
                   ?.copyWith(color: color ?? Theme.of(context).colorScheme.outline)),
         ),
+      ],
+    );
+  }
+}
+
+/// Timeline แสดงผู้ทำ + วันที่ ของแต่ละสเต็ป (เปิด PR / สร้าง PO / รับของ)
+class _StateTimeline extends StatelessWidget {
+  final PurchaseOrder order;
+  const _StateTimeline(this.order);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    Widget row(
+        IconData icon, Color color, String label, String? who, DateTime when) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 8),
+            Expanded(
+              child: RichText(
+                text: TextSpan(
+                  style: theme.textTheme.bodySmall,
+                  children: [
+                    TextSpan(
+                        text: '$label: ',
+                        style: TextStyle(
+                            color: color, fontWeight: FontWeight.w600)),
+                    TextSpan(
+                        text: (who == null || who.isEmpty) ? 'ไม่ทราบ' : who,
+                        style: TextStyle(color: theme.colorScheme.onSurface)),
+                    TextSpan(
+                        text: '  •  ${formatThaiDate(when)}',
+                        style: TextStyle(color: theme.colorScheme.outline)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        row(Icons.edit_note, Colors.orange.shade700, 'เปิด PR',
+            order.createdByName, order.createdAt),
+        if (order.poCreatedAt != null)
+          row(Icons.assignment_turned_in, Colors.blue.shade700, 'สร้าง PO',
+              order.poCreatedByName, order.poCreatedAt!),
+        if (order.receivedAt != null)
+          row(Icons.inventory_2, Colors.green.shade700, 'รับของ',
+              order.receivedByName, order.receivedAt!),
       ],
     );
   }

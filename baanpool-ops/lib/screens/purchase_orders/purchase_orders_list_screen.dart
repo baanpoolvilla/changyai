@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/purchase_order.dart';
+import '../../models/equipment_return.dart';
 import '../../services/supabase_service.dart';
 import '../../services/auth_state_service.dart';
 import '../../utils/thai_datetime.dart';
-import '../../utils/page_wrapper.dart';
 import '../../utils/error_message.dart';
 import '../../widgets/notification_bell.dart';
 
@@ -22,6 +22,7 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
   final _service = SupabaseService(Supabase.instance.client);
   final _authState = AuthStateService();
   List<PurchaseOrder> _orders = [];
+  List<EquipmentReturn> _returns = [];
   bool _loading = true;
   Map<String, String> _propertyNames = {};
 
@@ -47,10 +48,23 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
       )
       .toList();
 
+  // คืนของ/มีปัญหา: ที่ยังไม่จบเรื่อง (นับใส่ badge)
+  List<EquipmentReturn> get _openReturns => _returns
+      .where(
+        (r) =>
+            r.status == ReturnStatus.pending ||
+            r.status == ReturnStatus.processing,
+      )
+      .toList();
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
+    // เปลี่ยนแท็บ → รีบิลด์ FAB ให้ตรงบริบท (มือถือ)
+    _tabController.addListener(() {
+      if (mounted && !_tabController.indexIsChanging) setState(() {});
+    });
     _load();
   }
 
@@ -66,6 +80,7 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
       final results = await Future.wait([
         _service.getPurchaseOrders(),
         _service.getPropertyNamesOnly(),
+        _service.getEquipmentReturns(),
       ]);
       final data = results[0] as List<Map<String, dynamic>>;
       _orders = data.map((e) => PurchaseOrder.fromJson(e)).toList();
@@ -73,6 +88,8 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
       _propertyNames = {
         for (final p in props) p['id'] as String: p['name'] as String,
       };
+      final rets = results[2] as List<Map<String, dynamic>>;
+      _returns = rets.map((e) => EquipmentReturn.fromJson(e)).toList();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -111,6 +128,10 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
                     child:
                         _TabBadge('เสร็จสิ้น', _doneOrders.length, Colors.grey),
                   ),
+                  Tab(
+                    child: _TabBadge(
+                        'คืน/ปัญหา', _openReturns.length, Colors.brown),
+                  ),
                 ],
               )
             : null,
@@ -120,14 +141,27 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
           : isDesktop
               ? _buildDesktopKanban()
               : _buildMobileTabs(),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          await context.push('/purchase-orders/new');
-          _load();
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('เปิด PR'),
-      ),
+      floatingActionButton: _buildFab(isDesktop),
+    );
+  }
+
+  Widget _buildFab(bool isDesktop) {
+    // มือถือ + อยู่แท็บคืนของ → ปุ่มแจ้งคืน
+    if (!isDesktop && _tabController.index == 4) {
+      return FloatingActionButton.extended(
+        onPressed: _openReturnForm,
+        backgroundColor: Colors.brown,
+        icon: const Icon(Icons.assignment_return_outlined),
+        label: const Text('แจ้งคืน/ปัญหา'),
+      );
+    }
+    return FloatingActionButton.extended(
+      onPressed: () async {
+        await context.push('/purchase-orders/new');
+        _load();
+      },
+      icon: const Icon(Icons.add),
+      label: const Text('เปิด PR'),
     );
   }
 
@@ -190,6 +224,16 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
             onTap: _openDetail,
           ),
         ),
+        const VerticalDivider(width: 1),
+        Expanded(
+          child: _ReturnsColumn(
+            returns: _returns,
+            propertyNames: _propertyNames,
+            onRefresh: _load,
+            onTap: _openReturnDetail,
+            onAdd: _openReturnForm,
+          ),
+        ),
       ],
     );
   }
@@ -202,7 +246,43 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
         _buildList(_poReceivedOrders),
         _buildList(_activeOrders),
         _buildList(_doneOrders),
+        _buildReturnsList(_returns),
       ],
+    );
+  }
+
+  Widget _buildReturnsList(List<EquipmentReturn> returns) {
+    if (returns.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          children: [
+            const SizedBox(height: 120),
+            Icon(Icons.assignment_return_outlined,
+                size: 48, color: Colors.grey.shade300),
+            const SizedBox(height: 8),
+            Center(
+              child: Text('ยังไม่มีรายการคืน/ปัญหา',
+                  style: TextStyle(color: Colors.grey.shade400)),
+            ),
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: returns.length,
+        itemBuilder: (context, i) => Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _ReturnCard(
+            item: returns[i],
+            propertyName: _propertyNames[returns[i].propertyId] ?? '',
+            onTap: () => _openReturnDetail(returns[i]),
+          ),
+        ),
+      ),
     );
   }
 
@@ -229,7 +309,26 @@ class _PurchaseOrdersListScreenState extends State<PurchaseOrdersListScreen>
   }
 
   void _openDetail(PurchaseOrder order) async {
-    await context.push('/purchase-orders/${order.id}');
+    final msg = await context.push<String>('/purchase-orders/${order.id}');
+    if (msg != null && msg.isNotEmpty && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(msg)));
+    }
+    _load();
+  }
+
+  void _openReturnForm() async {
+    final created = await context.push<bool>('/purchase-orders/returns/new');
+    if (created == true) _load();
+  }
+
+  void _openReturnDetail(EquipmentReturn r) async {
+    final msg =
+        await context.push<String>('/purchase-orders/returns/${r.id}');
+    if (msg != null && msg.isNotEmpty && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(msg)));
+    }
     _load();
   }
 }
@@ -503,6 +602,214 @@ class _PoCard extends StatelessWidget {
       case POStatus.cancelled:
         return Colors.grey;
     }
+  }
+}
+
+// ─── Returns Column (desktop) ──────────────────────────
+class _ReturnsColumn extends StatelessWidget {
+  final List<EquipmentReturn> returns;
+  final Map<String, String> propertyNames;
+  final Future<void> Function() onRefresh;
+  final void Function(EquipmentReturn) onTap;
+  final VoidCallback onAdd;
+
+  const _ReturnsColumn({
+    required this.returns,
+    required this.propertyNames,
+    required this.onRefresh,
+    required this.onTap,
+    required this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Colors.brown;
+    final openCount = returns
+        .where((r) =>
+            r.status == ReturnStatus.pending ||
+            r.status == ReturnStatus.processing)
+        .length;
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            border: Border(
+                bottom: BorderSide(color: color.withValues(alpha: 0.2))),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.assignment_return_outlined, color: color, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('คืน/ปัญหา',
+                        style: TextStyle(
+                            color: color,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14)),
+                    Text('คืนของ / ของมีปัญหา',
+                        style: TextStyle(
+                            color: color.withValues(alpha: 0.7), fontSize: 11)),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text('$openCount',
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold)),
+              ),
+              IconButton(
+                onPressed: onAdd,
+                icon: Icon(Icons.add, color: color, size: 20),
+                tooltip: 'แจ้งคืน/ปัญหา',
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: returns.isEmpty
+              ? Center(
+                  child: Text('ไม่มีรายการ',
+                      style: TextStyle(color: Colors.grey.shade400)))
+              : RefreshIndicator(
+                  onRefresh: onRefresh,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(10),
+                    itemCount: returns.length,
+                    itemBuilder: (ctx, i) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _ReturnCard(
+                        item: returns[i],
+                        propertyName:
+                            propertyNames[returns[i].propertyId] ?? '',
+                        onTap: () => onTap(returns[i]),
+                      ),
+                    ),
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Return Card ───────────────────────────────────────
+class _ReturnCard extends StatelessWidget {
+  final EquipmentReturn item;
+  final String propertyName;
+  final VoidCallback onTap;
+
+  const _ReturnCard({
+    required this.item,
+    required this.propertyName,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final statusColor = _returnStatusColor(item.status);
+    final itemLabel =
+        (item.itemName != null && item.itemName!.isNotEmpty)
+            ? item.itemName!
+            : 'ทั้งรายการ';
+
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      item.poTitle ?? 'PO',
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: statusColor.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(item.status.displayName,
+                        style: TextStyle(color: statusColor, fontSize: 11)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$itemLabel  ×${item.qty}  •  ${item.problemType.displayName}',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.outline),
+              ),
+              if (propertyName.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Row(children: [
+                  const Icon(Icons.home_outlined, size: 13, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(propertyName,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.outline)),
+                ]),
+              ],
+              const SizedBox(height: 6),
+              Row(children: [
+                const Icon(Icons.person_outline, size: 13, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(item.createdByName ?? 'ไม่ทราบ',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.outline)),
+                const SizedBox(width: 8),
+                const Icon(Icons.calendar_today_outlined,
+                    size: 13, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(formatThaiDate(item.createdAt),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.outline)),
+              ]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Color _returnStatusColor(ReturnStatus s) {
+  switch (s) {
+    case ReturnStatus.pending:
+      return Colors.orange;
+    case ReturnStatus.processing:
+      return Colors.indigo;
+    case ReturnStatus.resolved:
+      return Colors.green;
+    case ReturnStatus.cancelled:
+      return Colors.grey;
   }
 }
 

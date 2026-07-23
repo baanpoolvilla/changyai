@@ -80,6 +80,12 @@ class PurchaseOrder {
   final String? createdByName;
   final String? poAssignedTo;
   final String? poAssignedToName;
+  final String? poCreatedBy;
+  final String? poCreatedByName;
+  final DateTime? poCreatedAt;
+  final String? receivedBy;
+  final String? receivedByName;
+  final DateTime? receivedAt;
   final POStatus status;
   final List<PurchaseOrderItem> items;
   final double totalPrice;
@@ -102,6 +108,12 @@ class PurchaseOrder {
     this.createdByName,
     this.poAssignedTo,
     this.poAssignedToName,
+    this.poCreatedBy,
+    this.poCreatedByName,
+    this.poCreatedAt,
+    this.receivedBy,
+    this.receivedByName,
+    this.receivedAt,
     required this.status,
     this.items = const [],
     this.totalPrice = 0,
@@ -136,6 +148,20 @@ class PurchaseOrder {
       poAssignedTo: json['po_assigned_to'] as String?,
       poAssignedToName: (json['assignee'] is Map)
           ? json['assignee']['full_name'] as String?
+          : null,
+      poCreatedBy: json['po_created_by'] as String?,
+      poCreatedByName: (json['po_creator'] is Map)
+          ? json['po_creator']['full_name'] as String?
+          : null,
+      poCreatedAt: json['po_created_at'] != null
+          ? DateTime.parse(json['po_created_at'] as String)
+          : null,
+      receivedBy: json['received_by'] as String?,
+      receivedByName: (json['receiver'] is Map)
+          ? json['receiver']['full_name'] as String?
+          : null,
+      receivedAt: json['received_at'] != null
+          ? DateTime.parse(json['received_at'] as String)
           : null,
       status: POStatus.fromString(json['status'] as String? ?? 'pending'),
       items: itemList,
