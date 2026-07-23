@@ -563,25 +563,7 @@ class _PoCard extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 6),
-              Row(
-                children: [
-                  const Icon(Icons.person_outline, size: 13, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Text(
-                    order.createdByName ?? 'ไม่ทราบ',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.outline),
-                  ),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.calendar_today_outlined, size: 13, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Text(
-                    formatThaiDate(order.createdAt),
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.outline),
-                  ),
-                ],
-              ),
+              _MiniTimeline(order),
             ],
           ),
         ),
@@ -602,6 +584,67 @@ class _PoCard extends StatelessWidget {
       case POStatus.cancelled:
         return Colors.grey;
     }
+  }
+}
+
+// ─── Mini Timeline (บนการ์ด) ───────────────────────────
+// ดึงลำดับเฟสมาแสดงบนการ์ด: เปิด PR → สร้าง PO → ดำเนินการซื้อ → รับของ
+class _MiniTimeline extends StatelessWidget {
+  final PurchaseOrder order;
+  const _MiniTimeline(this.order);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    Widget line(
+        IconData icon, Color color, String label, String? who, DateTime when) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 3),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text.rich(
+                TextSpan(children: [
+                  TextSpan(
+                      text: '$label · ',
+                      style:
+                          TextStyle(color: color, fontWeight: FontWeight.w600)),
+                  TextSpan(
+                      text: (who == null || who.isEmpty) ? 'ไม่ทราบ' : who),
+                  TextSpan(
+                      text: ' · ${formatThaiDate(when)}',
+                      style: TextStyle(color: theme.colorScheme.outline)),
+                ]),
+                style: theme.textTheme.bodySmall,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        line(Icons.edit_note, Colors.orange.shade700, 'เปิด PR',
+            order.createdByName, order.createdAt),
+        if (order.poCreatedAt != null)
+          line(Icons.assignment_turned_in, Colors.blue.shade700, 'สร้าง PO',
+              order.poCreatedByName, order.poCreatedAt!),
+        if (order.orderedAt != null)
+          line(Icons.local_shipping, Colors.indigo.shade700, 'ดำเนินการซื้อ',
+              order.orderedByName, order.orderedAt!),
+        if (order.receivedAt != null)
+          line(Icons.inventory_2, Colors.green.shade700, 'รับของ',
+              order.receivedByName, order.receivedAt!),
+      ],
+    );
   }
 }
 
