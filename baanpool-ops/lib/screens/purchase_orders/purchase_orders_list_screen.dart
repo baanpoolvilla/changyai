@@ -563,7 +563,7 @@ class _PoCard extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 6),
-              _MiniTimeline(order),
+              _CurrentPhase(order),
             ],
           ),
         ),
@@ -587,62 +587,69 @@ class _PoCard extends StatelessWidget {
   }
 }
 
-// ─── Mini Timeline (บนการ์ด) ───────────────────────────
-// ดึงลำดับเฟสมาแสดงบนการ์ด: เปิด PR → สร้าง PO → ดำเนินการซื้อ → รับของ
-class _MiniTimeline extends StatelessWidget {
+// ─── Current Phase (บนการ์ด) ───────────────────────────
+// แสดงเฉพาะสถานะปัจจุบัน (เฟสล่าสุดที่ผ่าน) — ดูครบทุกเฟสในหน้ารายละเอียด
+class _CurrentPhase extends StatelessWidget {
   final PurchaseOrder order;
-  const _MiniTimeline(this.order);
+  const _CurrentPhase(this.order);
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    Widget line(
-        IconData icon, Color color, String label, String? who, DateTime when) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 3),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 12, color: color),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text.rich(
-                TextSpan(children: [
-                  TextSpan(
-                      text: '$label · ',
-                      style:
-                          TextStyle(color: color, fontWeight: FontWeight.w600)),
-                  TextSpan(
-                      text: (who == null || who.isEmpty) ? 'ไม่ทราบ' : who),
-                  TextSpan(
-                      text: ' · ${formatThaiDate(when)}',
-                      style: TextStyle(color: theme.colorScheme.outline)),
-                ]),
-                style: theme.textTheme.bodySmall,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      );
+    // เลือกเฟสล่าสุดที่ผ่านมาแล้ว
+    final IconData icon;
+    final Color color;
+    final String label;
+    final String? who;
+    final DateTime when;
+    if (order.receivedAt != null) {
+      icon = Icons.inventory_2;
+      color = Colors.green.shade700;
+      label = 'รับของ';
+      who = order.receivedByName;
+      when = order.receivedAt!;
+    } else if (order.orderedAt != null) {
+      icon = Icons.local_shipping;
+      color = Colors.indigo.shade700;
+      label = 'ดำเนินการซื้อ';
+      who = order.orderedByName;
+      when = order.orderedAt!;
+    } else if (order.poCreatedAt != null) {
+      icon = Icons.assignment_turned_in;
+      color = Colors.blue.shade700;
+      label = 'สร้าง PO';
+      who = order.poCreatedByName;
+      when = order.poCreatedAt!;
+    } else {
+      icon = Icons.edit_note;
+      color = Colors.orange.shade700;
+      label = 'เปิด PR';
+      who = order.createdByName;
+      when = order.createdAt;
     }
 
-    return Column(
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        line(Icons.edit_note, Colors.orange.shade700, 'เปิด PR',
-            order.createdByName, order.createdAt),
-        if (order.poCreatedAt != null)
-          line(Icons.assignment_turned_in, Colors.blue.shade700, 'สร้าง PO',
-              order.poCreatedByName, order.poCreatedAt!),
-        if (order.orderedAt != null)
-          line(Icons.local_shipping, Colors.indigo.shade700, 'ดำเนินการซื้อ',
-              order.orderedByName, order.orderedAt!),
-        if (order.receivedAt != null)
-          line(Icons.inventory_2, Colors.green.shade700, 'รับของ',
-              order.receivedByName, order.receivedAt!),
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text.rich(
+            TextSpan(children: [
+              TextSpan(
+                  text: '$label · ',
+                  style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+              TextSpan(text: (who == null || who.isEmpty) ? 'ไม่ทราบ' : who),
+              TextSpan(
+                  text: ' · ${formatThaiDate(when)}',
+                  style: TextStyle(color: theme.colorScheme.outline)),
+            ]),
+            style: theme.textTheme.bodySmall,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ],
     );
   }
