@@ -83,6 +83,9 @@ class PurchaseOrder {
   final String? poCreatedBy;
   final String? poCreatedByName;
   final DateTime? poCreatedAt;
+  final String? orderedBy;
+  final String? orderedByName;
+  final DateTime? orderedAt;
   final String? receivedBy;
   final String? receivedByName;
   final DateTime? receivedAt;
@@ -111,6 +114,9 @@ class PurchaseOrder {
     this.poCreatedBy,
     this.poCreatedByName,
     this.poCreatedAt,
+    this.orderedBy,
+    this.orderedByName,
+    this.orderedAt,
     this.receivedBy,
     this.receivedByName,
     this.receivedAt,
@@ -155,6 +161,13 @@ class PurchaseOrder {
           : null,
       poCreatedAt: json['po_created_at'] != null
           ? DateTime.parse(json['po_created_at'] as String)
+          : null,
+      orderedBy: json['ordered_by'] as String?,
+      orderedByName: (json['orderer'] is Map)
+          ? json['orderer']['full_name'] as String?
+          : null,
+      orderedAt: json['ordered_at'] != null
+          ? DateTime.parse(json['ordered_at'] as String)
           : null,
       receivedBy: json['received_by'] as String?,
       receivedByName: (json['receiver'] is Map)

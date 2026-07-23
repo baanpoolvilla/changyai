@@ -1027,7 +1027,7 @@ class SupabaseService {
     String? createdBy,
   }) async {
     var query = _client.from('purchase_orders').select(
-        '*, creator:created_by(full_name), assignee:po_assigned_to(full_name), po_creator:po_created_by(full_name), receiver:received_by(full_name)');
+        '*, creator:created_by(full_name), assignee:po_assigned_to(full_name), po_creator:po_created_by(full_name), orderer:ordered_by(full_name), receiver:received_by(full_name)');
     if (status != null) query = query.eq('status', status);
     if (propertyId != null) query = query.eq('property_id', propertyId);
     if (createdBy != null) query = query.eq('created_by', createdBy);
@@ -1036,7 +1036,7 @@ class SupabaseService {
 
   Future<Map<String, dynamic>> getPurchaseOrder(String id) async {
     return await _client.from('purchase_orders').select(
-        '*, creator:created_by(full_name), assignee:po_assigned_to(full_name), po_creator:po_created_by(full_name), receiver:received_by(full_name)').eq('id', id).single();
+        '*, creator:created_by(full_name), assignee:po_assigned_to(full_name), po_creator:po_created_by(full_name), orderer:ordered_by(full_name), receiver:received_by(full_name)').eq('id', id).single();
   }
 
   Future<void> createPurchaseOrder(Map<String, dynamic> data) async {

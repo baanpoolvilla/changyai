@@ -420,6 +420,7 @@ class _PurchaseOrderDetailScreenState
     setState(() => _actionLoading = true);
     try {
       final now = DateTime.now();
+      final uid = Supabase.instance.client.auth.currentUser?.id;
       final urls = await _uploadImages(capturedImages, now);
       final totalPrice = _calcTotal(capturedQty, capturedPrice);
       final updatedItems = _buildItems(items, capturedQty, capturedPrice);
@@ -430,6 +431,8 @@ class _PurchaseOrderDetailScreenState
         'receipt_image_urls': urls,
         'items': updatedItems,
         'total_price': totalPrice,
+        'ordered_by': uid,
+        'ordered_at': now.toIso8601String(),
         'updated_at': now.toIso8601String(),
       });
       if (totalPrice > 0) await _createExpense(totalPrice, now);
@@ -1328,6 +1331,25 @@ class _PurchaseOrderDetailScreenState
                             ),
                           ),
                         ],
+
+                        // [6] แจ้งของมีปัญหา / คืนของ (ordered หรือ received)
+                        if ((_order!.status == POStatus.ordered ||
+                                _order!.status == POStatus.received) &&
+                            (isCeo || isAssignedUser)) ...[
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () => context.push(
+                                  '/purchase-orders/returns/new?poId=${_order!.id}'),
+                              icon: const Icon(
+                                  Icons.assignment_return_outlined),
+                              label: const Text('แจ้งของมีปัญหา / คืนของ'),
+                              style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.brown),
+                            ),
+                          ),
+                        ],
                       ],
 
                       // ─── Comments ──────────────────────────────
@@ -1602,6 +1624,9 @@ class _StateTimeline extends StatelessWidget {
         if (order.poCreatedAt != null)
           row(Icons.assignment_turned_in, Colors.blue.shade700, 'สร้าง PO',
               order.poCreatedByName, order.poCreatedAt!),
+        if (order.orderedAt != null)
+          row(Icons.local_shipping, Colors.indigo.shade700, 'ดำเนินการซื้อ',
+              order.orderedByName, order.orderedAt!),
         if (order.receivedAt != null)
           row(Icons.inventory_2, Colors.green.shade700, 'รับของ',
               order.receivedByName, order.receivedAt!),
