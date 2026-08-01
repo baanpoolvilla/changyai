@@ -85,6 +85,54 @@ class _PurchaseOrderDetailScreenState
     } catch (_) {}
   }
 
+  void _showDeleteCommentDialog(Map<String, dynamic> comment) {
+    final content = comment['content'] as String? ?? '';
+    // ตัดข้อความยาวไม่ให้ dialog ล้นจอ — '📷' คือคอมเมนต์ที่มีแต่รูป
+    final body = content == '📷'
+        ? 'ต้องการลบความคิดเห็นนี้หรือไม่?'
+        : content.length > 60
+            ? 'ต้องการลบความคิดเห็น "${content.substring(0, 60)}…" หรือไม่?'
+            : 'ต้องการลบความคิดเห็น "$content" หรือไม่?';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ลบความคิดเห็น'),
+        content: Text('$body\n\nการดำเนินการนี้ไม่สามารถย้อนกลับได้'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('ยกเลิก'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await _service.deletePOComment(comment['id'] as String);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('ลบความคิดเห็นแล้ว'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+                await _loadComments();
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('ลบไม่สำเร็จ: ${friendlyError(e)}')),
+                  );
+                }
+              }
+            },
+            child: const Text('ลบ'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _addComment() async {
     final text = _commentCtrl.text.trim();
     if (text.isEmpty && _commentImage == null) return;
@@ -1377,6 +1425,7 @@ class _PurchaseOrderDetailScreenState
                               createdAt: DateTime.parse(
                                   c['created_at'] as String),
                               imageUrl: c['image_url'] as String?,
+                              onDelete: () => _showDeleteCommentDialog(c),
                             )),
                       const SizedBox(height: 12),
                       // Add comment input
@@ -1636,11 +1685,13 @@ class _CommentBubble extends StatelessWidget {
   final String authorName;
   final DateTime createdAt;
   final String? imageUrl;
+  final VoidCallback? onDelete;
   const _CommentBubble(
       {required this.content,
       required this.authorName,
       required this.createdAt,
-      this.imageUrl});
+      this.imageUrl,
+      this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -1676,6 +1727,18 @@ class _CommentBubble extends StatelessWidget {
                     Text(formatThaiDate(createdAt),
                         style: theme.textTheme.labelSmall?.copyWith(
                             color: theme.colorScheme.outline)),
+                    if (onDelete != null) ...[
+                      const Spacer(),
+                      InkWell(
+                        onTap: onDelete,
+                        borderRadius: BorderRadius.circular(16),
+                        child: const Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(Icons.delete_outline,
+                              size: 16, color: Colors.grey),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 4),

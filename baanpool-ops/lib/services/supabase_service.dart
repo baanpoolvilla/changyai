@@ -184,13 +184,58 @@ class SupabaseService {
   ///
   /// FK ที่ชี้มาที่ work_orders เป็น ON DELETE CASCADE — comment,
   /// รูปจากช่างภายนอก และลิงก์อัปโหลด จะถูกลบตามไปด้วย
+  /// รูปใน Storage ถูกเก็บกวาดให้ด้วยแบบ best-effort
   Future<void> deleteWorkOrder(String id) async {
-    final deleted =
-        await _client.from('work_orders').delete().eq('id', id).select('id');
+    // ต้องอ่านรูปของ comment กับของช่างภายนอก "ก่อน" ลบ
+    // เพราะ FK เป็น CASCADE พอลบใบงานแล้วแถวพวกนี้จะหายทันที
+    // ตามเก็บ path ไม่ได้อีก
+    final commentUrls = <String>[];
+    final externalPaths = <String>[];
+    try {
+      final comments = await _client
+          .from('work_order_comments')
+          .select('image_url')
+          .eq('work_order_id', id);
+      for (final row in comments) {
+        final url = row['image_url'];
+        if (url is String && url.isNotEmpty) commentUrls.add(url);
+      }
+      final external = await _client
+          .from('work_order_external_photos')
+          .select('storage_path')
+          .eq('work_order_id', id);
+      for (final row in external) {
+        final path = row['storage_path'];
+        if (path is String && path.isNotEmpty) externalPaths.add(path);
+      }
+    } catch (_) {
+      // อ่านไม่ได้ก็ลบใบงานต่อ แค่รูปจะค้างอยู่ใน Storage
+    }
+
+    final deleted = await _client
+        .from('work_orders')
+        .delete()
+        .eq('id', id)
+        .select('id, photo_urls, after_photo_urls');
     if (deleted.isEmpty) {
       throw const NotDeletedException(
         'ลบใบงานไม่สำเร็จ — ใบงานอาจถูกลบไปแล้ว หรือยังไม่ได้รัน migration_063',
       );
+    }
+
+    // ─── เก็บกวาดรูป (ไม่ throw ไม่ว่าจะเกิดอะไรขึ้น) ───
+    final urls = <String>[...commentUrls];
+    for (final key in const ['photo_urls', 'after_photo_urls']) {
+      final list = deleted.first[key];
+      if (list is List) urls.addAll(list.whereType<String>());
+    }
+    await _deleteStorageUrls(urls);
+    if (externalPaths.isNotEmpty) {
+      try {
+        await _client.storage.from('photos').remove(externalPaths);
+      } catch (_) {
+        // เงียบไว้ตั้งใจ
+      }
     }
   }
 
@@ -631,6 +676,49 @@ class SupabaseService {
     return _client.storage.from(bucket).getPublicUrl(path);
   }
 
+  /// แยก bucket กับ path ออกจาก public URL ของ Supabase Storage
+  ///
+  /// รูปแบบ: `https://<ref>.supabase.co/storage/v1/object/public/<bucket>/<path>`
+  /// คืน `MapEntry(bucket, path)` หรือ null ถ้า URL ไม่เข้ารูปแบบ
+  static MapEntry<String, String>? _parseStorageUrl(String url) {
+    const marker = '/storage/v1/object/public/';
+    final start = url.indexOf(marker);
+    if (start < 0) return null;
+
+    var rest = url.substring(start + marker.length);
+    final query = rest.indexOf('?');
+    if (query >= 0) rest = rest.substring(0, query);
+
+    final slash = rest.indexOf('/');
+    if (slash <= 0 || slash == rest.length - 1) return null;
+
+    return MapEntry(
+      rest.substring(0, slash),
+      Uri.decodeComponent(rest.substring(slash + 1)),
+    );
+  }
+
+  /// ลบไฟล์ใน Storage จาก public URL — **ห้าม throw**
+  ///
+  /// เรียกหลังจากลบข้อมูลหลักสำเร็จแล้ว ถ้าลบไฟล์ไม่ได้ (ไฟล์หายไปแล้ว
+  /// หรือไม่มี policy) ก็ปล่อยผ่าน — ไฟล์ค้างยังดีกว่าโยน error ใส่ผู้ใช้
+  /// ทั้งที่ข้อมูลถูกลบไปเรียบร้อยแล้ว
+  Future<void> _deleteStorageUrls(Iterable<String> urls) async {
+    final byBucket = <String, List<String>>{};
+    for (final url in urls) {
+      final parsed = _parseStorageUrl(url);
+      if (parsed == null) continue;
+      byBucket.putIfAbsent(parsed.key, () => []).add(parsed.value);
+    }
+    for (final entry in byBucket.entries) {
+      try {
+        await _client.storage.from(entry.key).remove(entry.value);
+      } catch (_) {
+        // เงียบไว้ตั้งใจ
+      }
+    }
+  }
+
   static String _mimeFromPath(String path) {
     final ext = path.split('.').last.toLowerCase();
     switch (ext) {
@@ -757,17 +845,22 @@ class SupabaseService {
 
   /// ลบความคิดเห็นในใบงาน — ทุก role ลบของใครก็ได้ (migration_063)
   ///
-  /// รูปที่แนบมากับความคิดเห็นยังคงอยู่ใน Storage ไม่ถูกลบตาม
+  /// ขอ image_url กลับมาจาก RETURNING เลย จะได้ลบรูปใน Storage ตามไปด้วย
+  /// โดยไม่ต้องยิง query เพิ่ม
   Future<void> deleteWorkOrderComment(String commentId) async {
     final deleted = await _client
         .from('work_order_comments')
         .delete()
         .eq('id', commentId)
-        .select('id');
+        .select('id, image_url');
     if (deleted.isEmpty) {
       throw const NotDeletedException(
         'ลบความคิดเห็นไม่สำเร็จ — อาจถูกลบไปแล้ว หรือยังไม่ได้รัน migration_063',
       );
+    }
+    final url = deleted.first['image_url'];
+    if (url is String && url.isNotEmpty) {
+      await _deleteStorageUrls([url]);
     }
   }
 
@@ -1099,6 +1192,26 @@ class SupabaseService {
 
   Future<void> createPOComment(Map<String, dynamic> data) async {
     await _client.from('purchase_order_comments').insert(data);
+  }
+
+  /// ลบความคิดเห็นใน PO — ทุก role ลบของใครก็ได้ (migration_064)
+  ///
+  /// ลบรูปที่แนบมาใน Storage ตามไปด้วย
+  Future<void> deletePOComment(String commentId) async {
+    final deleted = await _client
+        .from('purchase_order_comments')
+        .delete()
+        .eq('id', commentId)
+        .select('id, image_url');
+    if (deleted.isEmpty) {
+      throw const NotDeletedException(
+        'ลบความคิดเห็นไม่สำเร็จ — อาจถูกลบไปแล้ว หรือยังไม่ได้รัน migration_064',
+      );
+    }
+    final url = deleted.first['image_url'];
+    if (url is String && url.isNotEmpty) {
+      await _deleteStorageUrls([url]);
+    }
   }
 
   // ─── Equipment Returns (คืนของ / ของมีปัญหา) ──────────
