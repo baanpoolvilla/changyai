@@ -1352,23 +1352,21 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                 ),
             ],
 
-            // ลบใบงาน — Super Admin only
-            if (_authState.currentRole.isSuperAdmin) ...[
-              const SizedBox(height: 16),
-              const Divider(),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _showDeleteDialog,
-                  icon: const Icon(Icons.delete_forever, color: Colors.red),
-                  label: const Text('ลบใบงาน', style: TextStyle(color: Colors.red)),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.red),
-                  ),
+            // ลบใบงาน — ทุก role ทำได้ (migration_063)
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _showDeleteDialog,
+                icon: const Icon(Icons.delete_forever, color: Colors.red),
+                label: const Text('ลบใบงาน', style: TextStyle(color: Colors.red)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.red),
                 ),
               ),
-            ],
+            ),
           ],
         ),
       ),
@@ -1397,6 +1395,17 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
               Text(
                 formatThaiDateTime(comment.createdAt),
                 style: const TextStyle(color: Colors.grey, fontSize: 11),
+              ),
+              const Spacer(),
+              // ลบความคิดเห็น — ทุก role ลบของใครก็ได้ (migration_063)
+              InkWell(
+                onTap: () => _showDeleteCommentDialog(comment),
+                borderRadius: BorderRadius.circular(16),
+                child: const Padding(
+                  padding: EdgeInsets.all(4),
+                  child: Icon(Icons.delete_outline,
+                      size: 16, color: Colors.grey),
+                ),
               ),
             ],
           ),
@@ -1429,6 +1438,55 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                 ],
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteCommentDialog(WorkOrderComment comment) {
+    // ตัดข้อความยาวไม่ให้ dialog ล้นจอ — '📷' คือคอมเมนต์ที่มีแต่รูป
+    final body = comment.content == '📷'
+        ? 'ต้องการลบความคิดเห็นนี้หรือไม่?'
+        : comment.content.length > 60
+            ? 'ต้องการลบความคิดเห็น "${comment.content.substring(0, 60)}…" หรือไม่?'
+            : 'ต้องการลบความคิดเห็น "${comment.content}" หรือไม่?';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ลบความคิดเห็น'),
+        content: Text(
+          '$body\n\nการดำเนินการนี้ไม่สามารถย้อนกลับได้',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('ยกเลิก'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await _service.deleteWorkOrderComment(comment.id);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('ลบความคิดเห็นแล้ว'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+                await _load();
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('ลบไม่สำเร็จ: ${friendlyError(e)}')),
+                  );
+                }
+              }
+            },
+            child: const Text('ลบ'),
           ),
         ],
       ),

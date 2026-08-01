@@ -2,6 +2,20 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'image_upload.dart';
 
+/// ลบแล้วไม่มีแถวไหนหายไปจริง
+///
+/// Supabase `.delete()` ที่โดน RLS บล็อกจะ **ไม่ throw** — มันตอบว่าสำเร็จ
+/// โดยลบ 0 แถว ทำให้ UI ขึ้นว่าลบแล้วทั้งที่ข้อมูลยังอยู่
+/// จึงต้องต่อ `.select()` แล้วเช็คว่าได้แถวกลับมาไหม แล้วโยน exception นี้เอง
+class NotDeletedException implements Exception {
+  final String thaiMessage;
+
+  const NotDeletedException(this.thaiMessage);
+
+  @override
+  String toString() => 'NotDeletedException: $thaiMessage';
+}
+
 /// แปลง exception จาก Supabase/เครือข่าย ให้เป็นข้อความภาษาไทยที่ผู้ใช้อ่านเข้าใจ
 /// แทนการโชว์รหัส error ดิบ เช่น
 ///   PostgrestException(message: new row violates check constraint..., code: 23514)
@@ -10,6 +24,10 @@ String friendlyError(Object error) {
   // ─── ตรวจฝั่ง client ก่อนอัปโหลด ───────────────────────
   // บอกขนาดจริงกับเพดาน ผู้ใช้จะได้รู้ว่าต้องเล็กลงแค่ไหน
   if (error is FileTooLargeException) {
+    return error.thaiMessage;
+  }
+
+  if (error is NotDeletedException) {
     return error.thaiMessage;
   }
 

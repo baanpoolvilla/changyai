@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/pm_schedule.dart';
+import '../utils/error_message.dart';
 import '../utils/image_upload.dart';
 
 /// Service layer for all Supabase operations
@@ -176,9 +177,21 @@ class SupabaseService {
     await _client.from('work_orders').update(data).eq('id', id);
   }
 
-  /// Delete a work order — only Super Admin (admin role) should call this
+  /// ลบใบงาน — ทุก role ที่ login แล้วทำได้ (migration_063)
+  ///
+  /// ต่อ `.select()` เพื่อยืนยันว่าลบจริง ถ้า RLS บล็อก Supabase จะตอบว่า
+  /// สำเร็จโดยลบ 0 แถว ซึ่งเคยทำให้ UI ขึ้น "ลบใบงานแล้ว" ทั้งที่ยังอยู่
+  ///
+  /// FK ที่ชี้มาที่ work_orders เป็น ON DELETE CASCADE — comment,
+  /// รูปจากช่างภายนอก และลิงก์อัปโหลด จะถูกลบตามไปด้วย
   Future<void> deleteWorkOrder(String id) async {
-    await _client.from('work_orders').delete().eq('id', id);
+    final deleted =
+        await _client.from('work_orders').delete().eq('id', id).select('id');
+    if (deleted.isEmpty) {
+      throw const NotDeletedException(
+        'ลบใบงานไม่สำเร็จ — ใบงานอาจถูกลบไปแล้ว หรือยังไม่ได้รัน migration_063',
+      );
+    }
   }
 
   // ─── Expenses ─────────────────────────────────────────
@@ -740,6 +753,22 @@ class SupabaseService {
       if (userId != null) 'user_id': userId,
       if (imageUrl != null) 'image_url': imageUrl,
     });
+  }
+
+  /// ลบความคิดเห็นในใบงาน — ทุก role ลบของใครก็ได้ (migration_063)
+  ///
+  /// รูปที่แนบมากับความคิดเห็นยังคงอยู่ใน Storage ไม่ถูกลบตาม
+  Future<void> deleteWorkOrderComment(String commentId) async {
+    final deleted = await _client
+        .from('work_order_comments')
+        .delete()
+        .eq('id', commentId)
+        .select('id');
+    if (deleted.isEmpty) {
+      throw const NotDeletedException(
+        'ลบความคิดเห็นไม่สำเร็จ — อาจถูกลบไปแล้ว หรือยังไม่ได้รัน migration_063',
+      );
+    }
   }
 
   // ─── Property Work Order Status Counts ───────────────
