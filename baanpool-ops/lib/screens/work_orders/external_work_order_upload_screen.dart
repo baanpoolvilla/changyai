@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/error_message.dart';
+import '../../utils/image_upload.dart';
 
 /// หน้าสาธารณะสำหรับให้ช่างภายนอกส่งรูปอย่างเดียวโดยไม่ต้อง login
 class ExternalWorkOrderUploadScreen extends StatefulWidget {
@@ -69,7 +70,7 @@ class _ExternalWorkOrderUploadScreenState
 
   Future<void> _pickFromGallery() async {
     try {
-      final files = await _picker.pickMultiImage(imageQuality: 75);
+      final files = await pickUploadImages(_picker);
       if (files.isEmpty || !mounted) return;
       final allowed = files.take(_remaining).toList();
       setState(() => _selected = allowed);
@@ -83,10 +84,7 @@ class _ExternalWorkOrderUploadScreenState
 
   Future<void> _takePhoto() async {
     try {
-      final file = await _picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 75,
-      );
+      final file = await pickUploadImage(_picker, ImageSource.camera);
       if (file != null && mounted) setState(() => _selected = [file]);
     } catch (e) {
       _showMessage('เปิดกล้องไม่สำเร็จ: ${friendlyError(e)}');

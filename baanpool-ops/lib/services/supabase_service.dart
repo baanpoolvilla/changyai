@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/pm_schedule.dart';
+import '../utils/image_upload.dart';
 
 /// Service layer for all Supabase operations
 class SupabaseService {
@@ -603,6 +604,10 @@ class SupabaseService {
     Uint8List bytes, {
     String? contentType,
   }) async {
+    // กันไว้ก่อนยิงขึ้น server — ไม่งั้นผู้ใช้ต้องรออัปโหลดจนจบแล้วค่อยเจอ 413
+    if (bytes.length > kUploadMaxBytes) {
+      throw FileTooLargeException(bytes.length, kUploadMaxBytes);
+    }
     await _client.storage.from(bucket).uploadBinary(
           path,
           bytes,

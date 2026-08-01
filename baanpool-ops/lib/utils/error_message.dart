@@ -1,10 +1,18 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'image_upload.dart';
+
 /// แปลง exception จาก Supabase/เครือข่าย ให้เป็นข้อความภาษาไทยที่ผู้ใช้อ่านเข้าใจ
 /// แทนการโชว์รหัส error ดิบ เช่น
 ///   PostgrestException(message: new row violates check constraint..., code: 23514)
 /// → "ข้อมูลไม่ถูกต้องตามเงื่อนไขของระบบ กรุณาตรวจสอบข้อมูลที่กรอก"
 String friendlyError(Object error) {
+  // ─── ตรวจฝั่ง client ก่อนอัปโหลด ───────────────────────
+  // บอกขนาดจริงกับเพดาน ผู้ใช้จะได้รู้ว่าต้องเล็กลงแค่ไหน
+  if (error is FileTooLargeException) {
+    return error.thaiMessage;
+  }
+
   // ─── Supabase: Postgres / PostgREST ───────────────────
   if (error is PostgrestException) {
     switch (error.code) {

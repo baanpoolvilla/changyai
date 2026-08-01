@@ -8,6 +8,7 @@ import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/thai_datetime.dart';
 import '../../utils/error_message.dart';
+import '../../utils/image_upload.dart';
 
 class ExpenseFormScreen extends StatefulWidget {
   final String? workOrderId;
@@ -108,10 +109,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
 
   Future<void> _pickReceipt() async {
     try {
-      final image = await _picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 70,
-      );
+      final image = await pickUploadImage(_picker, ImageSource.gallery);
       if (image == null) return;
       final bytes = await image.readAsBytes();
       setState(() {
@@ -161,7 +159,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       // Upload receipt image if selected
       String? receiptUrl;
       if (!isNoExpense && _receiptBytes != null && _receiptImage != null) {
-        final ext = _receiptImage!.name.split('.').last;
+        final ext = uploadExtension(_receiptImage!);
         final path = 'receipts/${thaiNow().millisecondsSinceEpoch}.$ext';
         try {
           receiptUrl = await _service.uploadFile(

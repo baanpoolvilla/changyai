@@ -8,6 +8,7 @@ import '../../services/supabase_service.dart';
 import '../../services/auth_state_service.dart';
 import '../../utils/thai_datetime.dart';
 import '../../utils/error_message.dart';
+import '../../utils/image_upload.dart';
 
 class PurchaseOrderDetailScreen extends StatefulWidget {
   final String orderId;
@@ -92,7 +93,7 @@ class _PurchaseOrderDetailScreenState
       String? imageUrl;
       if (_commentImage != null) {
         final bytes = await _commentImage!.readAsBytes();
-        final ext = _commentImage!.path.split('.').last.toLowerCase();
+        final ext = uploadExtension(_commentImage!);
         final fileName = 'comment_${DateTime.now().millisecondsSinceEpoch}.$ext';
         imageUrl = await _service.uploadFile('po-receipts', fileName, bytes);
       }
@@ -674,8 +675,8 @@ class _PurchaseOrderDetailScreenState
             const Spacer(),
             IconButton(
               onPressed: () async {
-                final xFile = await picker.pickImage(
-                    source: ImageSource.camera, imageQuality: 80);
+                final xFile =
+                    await pickUploadImage(picker, ImageSource.camera);
                 if (xFile != null) setDlg(() => pickedImages.add(xFile));
               },
               icon: const Icon(Icons.camera_alt_outlined, size: 20),
@@ -683,8 +684,7 @@ class _PurchaseOrderDetailScreenState
             ),
             IconButton(
               onPressed: () async {
-                final xFiles =
-                    await picker.pickMultiImage(imageQuality: 80);
+                final xFiles = await pickUploadImages(picker);
                 if (xFiles.isNotEmpty) {
                   setDlg(() => pickedImages.addAll(xFiles));
                 }
@@ -740,7 +740,7 @@ class _PurchaseOrderDetailScreenState
     final urls = <String>[];
     for (final xFile in files) {
       final bytes = await xFile.readAsBytes();
-      final ext = xFile.path.split('.').last.toLowerCase();
+      final ext = uploadExtension(xFile);
       final fileName =
           'po_${widget.orderId}_${now.millisecondsSinceEpoch}_${urls.length}.$ext';
       final url =
@@ -1417,10 +1417,8 @@ class _PurchaseOrderDetailScreenState
                             onPressed: _commentLoading
                                 ? null
                                 : () async {
-                                    final picked =
-                                        await _imagePicker.pickImage(
-                                            source: ImageSource.gallery,
-                                            imageQuality: 80);
+                                    final picked = await pickUploadImage(
+                                        _imagePicker, ImageSource.gallery);
                                     if (picked != null) {
                                       setState(() => _commentImage = picked);
                                     }
@@ -1438,10 +1436,8 @@ class _PurchaseOrderDetailScreenState
                             onPressed: _commentLoading
                                 ? null
                                 : () async {
-                                    final picked =
-                                        await _imagePicker.pickImage(
-                                            source: ImageSource.camera,
-                                            imageQuality: 80);
+                                    final picked = await pickUploadImage(
+                                        _imagePicker, ImageSource.camera);
                                     if (picked != null) {
                                       setState(() => _commentImage = picked);
                                     }

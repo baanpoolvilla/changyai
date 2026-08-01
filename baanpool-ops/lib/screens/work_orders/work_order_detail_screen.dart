@@ -11,6 +11,7 @@ import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/thai_datetime.dart';
 import '../../utils/error_message.dart';
+import '../../utils/image_upload.dart';
 
 class WorkOrderDetailScreen extends StatefulWidget {
   final String workOrderId;
@@ -470,9 +471,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                   OutlinedButton.icon(
                     onPressed: () async {
                       try {
-                        final images = await _picker.pickMultiImage(
-                          imageQuality: 70,
-                        );
+                        final images = await pickUploadImages(_picker);
                         if (images.isEmpty) return;
                         for (final img in images) {
                           final bytes = await img.readAsBytes();
@@ -555,7 +554,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
       final uploadFutures = <Future<String?>>[];
       for (int i = 0; i < _completionImageBytes.length; i++) {
         final bytes = _completionImageBytes[i];
-        final ext = _completionImages[i].name.split('.').last;
+        final ext = uploadExtension(_completionImages[i]);
         final path =
             'work-orders/after_${DateTime.now().millisecondsSinceEpoch}_$i.$ext';
         uploadFutures.add(
@@ -615,7 +614,7 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
       String? imageUrl;
       if (_commentImage != null) {
         final bytes = await _commentImage!.readAsBytes();
-        final ext = _commentImage!.path.split('.').last.toLowerCase();
+        final ext = uploadExtension(_commentImage!);
         final fileName = 'comment_${DateTime.now().millisecondsSinceEpoch}.$ext';
         imageUrl = await _service.uploadFile('po-receipts', fileName, bytes);
       }
@@ -1209,9 +1208,8 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                           onPressed: _addingComment
                               ? null
                               : () async {
-                                  final picked = await _picker.pickImage(
-                                      source: ImageSource.gallery,
-                                      imageQuality: 80);
+                                  final picked = await pickUploadImage(
+                                      _picker, ImageSource.gallery);
                                   if (picked != null) {
                                     setState(() => _commentImage = picked);
                                   }
@@ -1228,9 +1226,8 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                           onPressed: _addingComment
                               ? null
                               : () async {
-                                  final picked = await _picker.pickImage(
-                                      source: ImageSource.camera,
-                                      imageQuality: 80);
+                                  final picked = await pickUploadImage(
+                                      _picker, ImageSource.camera);
                                   if (picked != null) {
                                     setState(() => _commentImage = picked);
                                   }

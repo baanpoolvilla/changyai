@@ -7,6 +7,7 @@ import '../../models/user.dart';
 import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/error_message.dart';
+import '../../utils/image_upload.dart';
 
 class WorkOrderFormScreen extends StatefulWidget {
   final String? prefillTitle;
@@ -134,7 +135,7 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
       final uploadFutures = <Future<String?>>[];
       for (int i = 0; i < _imageBytes.length; i++) {
         final bytes = _imageBytes[i];
-        final ext = _pickedImages[i].name.split('.').last;
+        final ext = uploadExtension(_pickedImages[i]);
         final path =
             'work-orders/${DateTime.now().millisecondsSinceEpoch}_$i.$ext';
         uploadFutures.add(
@@ -225,10 +226,7 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
 
     try {
       if (source == 'camera') {
-        final image = await _picker.pickImage(
-          source: ImageSource.camera,
-          imageQuality: 70,
-        );
+        final image = await pickUploadImage(_picker, ImageSource.camera);
         if (image == null) return;
         final bytes = await image.readAsBytes();
         setState(() {
@@ -236,7 +234,7 @@ class _WorkOrderFormScreenState extends State<WorkOrderFormScreen> {
           _imageBytes.add(bytes);
         });
       } else {
-        final images = await _picker.pickMultiImage(imageQuality: 70);
+        final images = await pickUploadImages(_picker);
         if (images.isEmpty) return;
         final newImages = <XFile>[];
         final newBytes = <Uint8List>[];

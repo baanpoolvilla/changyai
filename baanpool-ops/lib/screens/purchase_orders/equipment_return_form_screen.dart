@@ -6,6 +6,7 @@ import '../../models/purchase_order.dart';
 import '../../models/equipment_return.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/error_message.dart';
+import '../../utils/image_upload.dart';
 
 /// ฟอร์มแจ้ง "คืนของ / ของมีปัญหา" — ผูกกับ PO เดิม
 class EquipmentReturnFormScreen extends StatefulWidget {
@@ -83,10 +84,10 @@ class _EquipmentReturnFormScreenState extends State<EquipmentReturnFormScreen> {
 
   Future<void> _pickImages(ImageSource source) async {
     if (source == ImageSource.camera) {
-      final x = await _picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+      final x = await pickUploadImage(_picker, ImageSource.camera);
       if (x != null) setState(() => _pickedImages.add(x));
     } else {
-      final xs = await _picker.pickMultiImage(imageQuality: 80);
+      final xs = await pickUploadImages(_picker);
       if (xs.isNotEmpty) setState(() => _pickedImages.addAll(xs));
     }
   }
@@ -105,7 +106,7 @@ class _EquipmentReturnFormScreenState extends State<EquipmentReturnFormScreen> {
       final imageUrls = <String>[];
       for (int i = 0; i < _pickedImages.length; i++) {
         final bytes = await _pickedImages[i].readAsBytes();
-        final ext = _pickedImages[i].path.split('.').last.toLowerCase();
+        final ext = uploadExtension(_pickedImages[i]);
         final fileName = 'return_${now.millisecondsSinceEpoch}_$i.$ext';
         final url = await _service.uploadFile('po-receipts', fileName, bytes);
         imageUrls.add(url);

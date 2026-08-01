@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/error_message.dart';
+import '../../utils/image_upload.dart';
 
 /// หน้าบันทึกค่าใช้จ่ายเล็กน้อย — ผู้ดูแลบ้านซื้อของเองแล้วบันทึก
 class QuickExpenseScreen extends StatefulWidget {
@@ -59,7 +60,7 @@ class _QuickExpenseScreenState extends State<QuickExpenseScreen> {
   }
 
   Future<void> _pickReceipt(ImageSource source) async {
-    final xFile = await _picker.pickImage(source: source, imageQuality: 80);
+    final xFile = await pickUploadImage(_picker, source);
     if (xFile == null) return;
     final bytes = await xFile.readAsBytes();
     setState(() {
@@ -74,7 +75,7 @@ class _QuickExpenseScreenState extends State<QuickExpenseScreen> {
     try {
       String? receiptUrl;
       if (_receiptBytes != null && _receiptImage != null) {
-        final ext = _receiptImage!.path.split('.').last.toLowerCase();
+        final ext = uploadExtension(_receiptImage!);
         final fileName =
             'quick_${DateTime.now().millisecondsSinceEpoch}.$ext';
         receiptUrl = await _service.uploadFile(

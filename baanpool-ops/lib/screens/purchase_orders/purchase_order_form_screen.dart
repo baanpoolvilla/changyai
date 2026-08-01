@@ -7,6 +7,7 @@ import '../../models/user.dart';
 import '../../services/supabase_service.dart';
 import '../../services/auth_state_service.dart';
 import '../../utils/error_message.dart';
+import '../../utils/image_upload.dart';
 
 class PurchaseOrderFormScreen extends StatefulWidget {
   const PurchaseOrderFormScreen({super.key});
@@ -102,10 +103,10 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
 
   Future<void> _pickImages(ImageSource source) async {
     if (source == ImageSource.camera) {
-      final xFile = await _picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+      final xFile = await pickUploadImage(_picker, ImageSource.camera);
       if (xFile != null) setState(() => _pickedImages.add(xFile));
     } else {
-      final xFiles = await _picker.pickMultiImage(imageQuality: 80);
+      final xFiles = await pickUploadImages(_picker);
       if (xFiles.isNotEmpty) setState(() => _pickedImages.addAll(xFiles));
     }
   }
@@ -150,7 +151,7 @@ class _PurchaseOrderFormScreenState extends State<PurchaseOrderFormScreen> {
       final now = DateTime.now();
       for (int i = 0; i < _pickedImages.length; i++) {
         final bytes = await _pickedImages[i].readAsBytes();
-        final ext = _pickedImages[i].path.split('.').last.toLowerCase();
+        final ext = uploadExtension(_pickedImages[i]);
         final fileName = 'pr_${now.millisecondsSinceEpoch}_$i.$ext';
         final url = await _service.uploadFile('po-receipts', fileName, bytes);
         prImageUrls.add(url);
