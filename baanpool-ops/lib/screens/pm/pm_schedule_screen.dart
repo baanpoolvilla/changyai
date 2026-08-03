@@ -6,7 +6,6 @@ import '../../models/user.dart';
 import '../../services/auth_state_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/thai_datetime.dart';
-import '../../utils/page_wrapper.dart';
 import '../../utils/error_message.dart';
 import '../../widgets/cc_picker_field.dart';
 import '../../widgets/notification_bell.dart';
@@ -903,65 +902,71 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
           const NotificationBell(),
         ],
       ),
+      // ทั้งหน้าเลื่อนเป็นชิ้นเดียว — ส่วนหัว (สรุป/สถิติ/ตัวกรอง) เลื่อนหายไปได้
+      // ถ้าตรึงไว้ด้านบนแบบเดิม จะกินที่จนเหลือพื้นที่ให้รายการ PM แค่ 2 ใบ
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                _buildDashboardOverview(theme),
-                _buildStatBar(theme),
-                if (filterGroups.isNotEmpty)
-                  _buildFilterPanel(
-                    theme,
-                    filterGroups,
-                    visiblePropertyOptions,
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(child: _buildDashboardOverview(theme)),
+                  SliverToBoxAdapter(child: _buildStatBar(theme)),
+                  if (filterGroups.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: _buildFilterPanel(
+                        theme,
+                        filterGroups,
+                        visiblePropertyOptions,
+                      ),
+                    ),
+                  SliverToBoxAdapter(
+                    child: _buildScheduleListHeader(theme, displayed.length),
                   ),
-                _buildScheduleListHeader(theme, displayed.length),
-                Expanded(
-                  child: displayed.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                _selectedStatus?.icon ?? Icons.schedule,
-                                size: 64,
-                                color: theme.colorScheme.outline,
-                              ),
-                              const SizedBox(height: 16),
-                              // แยกให้ชัดว่า "ไม่มีเลย" กับ "ไม่มีในตัวกรองนี้" ต่างกัน
-                              Text(
-                                _selectedStatus != null
-                                    ? 'ไม่มี PM ที่${_selectedStatus!.label}'
-                                    : _schedules.isEmpty
-                                    ? 'ยังไม่มีแผน PM'
-                                    : 'ไม่มี PM ในบ้านที่เลือก',
-                              ),
-                              if (_selectedStatus != null) ...[
-                                const SizedBox(height: 8),
-                                TextButton(
-                                  onPressed: () =>
-                                      setState(() => _selectedStatus = null),
-                                  child: const Text('ดูทั้งหมด'),
-                                ),
-                              ],
-                            ],
-                          ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: _load,
-                          child: PageWrapper(
-                            child: ListView.builder(
-                              padding: const EdgeInsets.only(bottom: 80),
-                              itemCount: displayed.length,
-                              itemBuilder: (context, index) {
-                                final s = displayed[index];
-                                return _buildScheduleCard(s);
-                              },
+                  if (displayed.isEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 48),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _selectedStatus?.icon ?? Icons.schedule,
+                              size: 64,
+                              color: theme.colorScheme.outline,
                             ),
-                          ),
+                            const SizedBox(height: 16),
+                            // แยกให้ชัดว่า "ไม่มีเลย" กับ "ไม่มีในตัวกรองนี้" ต่างกัน
+                            Text(
+                              _selectedStatus != null
+                                  ? 'ไม่มี PM ที่${_selectedStatus!.label}'
+                                  : _schedules.isEmpty
+                                  ? 'ยังไม่มีแผน PM'
+                                  : 'ไม่มี PM ในบ้านที่เลือก',
+                            ),
+                            if (_selectedStatus != null) ...[
+                              const SizedBox(height: 8),
+                              TextButton(
+                                onPressed: () =>
+                                    setState(() => _selectedStatus = null),
+                                child: const Text('ดูทั้งหมด'),
+                              ),
+                            ],
+                          ],
                         ),
-                ),
-              ],
+                      ),
+                    )
+                  else
+                    SliverList.builder(
+                      itemCount: displayed.length,
+                      itemBuilder: (context, index) =>
+                          _alignedBar(child: _buildScheduleCard(displayed[index])),
+                    ),
+                  // เผื่อที่ให้ปุ่มลอย 2 ปุ่มมุมล่างขวาไม่ทับการ์ดใบสุดท้าย
+                  const SliverToBoxAdapter(child: SizedBox(height: 96)),
+                ],
+              ),
             ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1274,9 +1279,9 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
 
     return _alignedBar(
       child: Padding(
-        padding: const EdgeInsets.only(top: 16),
+        padding: const EdgeInsets.only(top: 12),
         child: Container(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               colors: [Color(0xFF0F766E), Color(0xFF0D9488)],
@@ -1298,19 +1303,19 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
               return Row(
                 children: [
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
                       Icons.home_repair_service_rounded,
                       color: Colors.white,
-                      size: 27,
+                      size: 23,
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1325,15 +1330,18 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          'ติดตามแผนบำรุงรักษาและงานที่ต้องดำเนินการ',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: Colors.white.withValues(alpha: 0.82),
+                        // จอแคบตัดคำอธิบายทิ้ง — เอาที่ไปให้รายการ PM ดีกว่า
+                        if (!compact) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            'ติดตามแผนบำรุงรักษาและงานที่ต้องดำเนินการ',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.white.withValues(alpha: 0.82),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        ],
                       ],
                     ),
                   ),
@@ -1391,20 +1399,20 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
         child: Card(
           margin: EdgeInsets.zero,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+            padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
             child: Column(
               children: [
                 Row(
                   children: [
                     Icon(
                       Icons.tune_rounded,
-                      size: 18,
+                      size: 16,
                       color: theme.colorScheme.primary,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       'กรองตามบ้าน',
-                      style: theme.textTheme.titleSmall?.copyWith(
+                      style: theme.textTheme.labelLarge?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -1415,11 +1423,14 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                         onPressed: _resetPropertyFilters,
                         icon: const Icon(Icons.restart_alt, size: 16),
                         label: const Text('ล้างตัวกรอง'),
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                        ),
                       ),
                   ],
                 ),
                 SizedBox(
-                  height: 42,
+                  height: 38,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(vertical: 3),
@@ -1450,9 +1461,9 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                 ),
                 if (_selectedPropertyGroup != null &&
                     visiblePropertyOptions.isNotEmpty) ...[
-                  const Divider(height: 10),
+                  const Divider(height: 8),
                   SizedBox(
-                    height: 42,
+                    height: 38,
                     child: ListView(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -1493,12 +1504,12 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     final statusLabel = _selectedStatus?.label;
     return _alignedBar(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(2, 14, 2, 8),
+        padding: const EdgeInsets.fromLTRB(2, 10, 2, 4),
         child: Row(
           children: [
             Text(
               statusLabel == null ? 'รายการ PM' : 'รายการ: $statusLabel',
-              style: theme.textTheme.titleMedium?.copyWith(
+              style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1569,7 +1580,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
             }
 
             return SizedBox(
-              height: 94,
+              height: _statTileHeight,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: visible.length,
@@ -1584,13 +1595,16 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     );
   }
 
+  /// ความสูงของ stat tile — ใช้ร่วมกับ ListView แนวนอนที่ครอบอยู่
+  static const double _statTileHeight = 76;
+
   /// stat tile ตาม spec: มีแค่ label + value
   /// เลือกอยู่ = พื้นอ่อนสีสถานะ + ขอบหนา (ไม่ได้บอกด้วยสีอย่างเดียว มี icon กำกับ)
   Widget _statTile(
     ThemeData theme,
     _PmStatus st,
     int count, {
-    double width = 150,
+    double width = 132,
   }) {
     final selected = _selectedStatus == st;
     return Tooltip(
@@ -1603,8 +1617,8 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
           onTap: () => setState(() => _selectedStatus = selected ? null : st),
           child: Container(
             width: width,
-            height: 94,
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+            height: _statTileHeight,
+            padding: const EdgeInsets.fromLTRB(12, 9, 12, 8),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
