@@ -137,6 +137,8 @@ class SupabaseService {
       return data
           .where((wo) =>
               wo['status'] == 'completed' &&
+              // PM ที่ตั้งว่าไม่มีค่าใช้จ่าย → ไม่ต้องรอบันทึก (migration_065)
+              wo['requires_expense'] != false &&
               !withExpenses.contains(wo['id'] as String))
           .toList();
     }
@@ -949,12 +951,16 @@ class SupabaseService {
   /// Count completed work orders that have no expense records
   Future<int> getNoExpenseWorkOrdersCount() async {
     final withExpenses = await getWorkOrderIdsWithExpenses();
+    // เลือกทั้งแถวไว้ก่อน — ถ้ายังไม่ได้รัน migration_065 คอลัมน์
+    // requires_expense จะไม่มี การระบุชื่อคอลัมน์ตรงๆ จะทำให้ query พัง
     final completed = await _client
         .from('work_orders')
-        .select('id')
+        .select()
         .eq('status', 'completed');
     final noExpense = completed.where(
-      (wo) => !withExpenses.contains(wo['id'] as String),
+      (wo) =>
+          wo['requires_expense'] != false &&
+          !withExpenses.contains(wo['id'] as String),
     );
     return noExpense.length;
   }

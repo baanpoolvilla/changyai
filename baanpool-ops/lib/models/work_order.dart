@@ -23,6 +23,9 @@ class WorkOrder {
   final List<String> pmScheduleIds;
   /// true = ระบบสร้างให้อัตโนมัติจาก PM ที่ถึงกำหนด (ไม่ใช่คนกดสร้าง)
   final bool autoCreated;
+  /// true = ปิดงานแล้วต้องบันทึกค่าใช้จ่าย, false = งานนี้ไม่มีค่าใช้จ่าย
+  /// (รับค่ามาจาก PM ต้นทาง — migration_065)
+  final bool requiresExpense;
   final DateTime createdAt;
 
   const WorkOrder({
@@ -46,6 +49,7 @@ class WorkOrder {
     this.pmScheduleId,
     this.pmScheduleIds = const [],
     this.autoCreated = false,
+    this.requiresExpense = true,
     required this.createdAt,
   });
 
@@ -100,6 +104,8 @@ class WorkOrder {
               .toList() ??
           [],
       autoCreated: json['auto_created'] as bool? ?? false,
+      // ยังไม่ได้รัน migration_065 → ไม่มีคอลัมน์นี้ ให้ถือว่ามีค่าใช้จ่ายเหมือนเดิม
+      requiresExpense: json['requires_expense'] as bool? ?? true,
       createdAt: parseServerTimestampToThai(json['created_at'] as String),
     );
   }
@@ -148,11 +154,11 @@ enum WorkOrderStatus {
   String get displayName {
     switch (this) {
       case WorkOrderStatus.open:
-        return 'เปิด';
+        return 'รอดำเนินการ';
       case WorkOrderStatus.inProgress:
         return 'กำลังดำเนินการ';
       case WorkOrderStatus.completed:
-        return 'เสร็จแล้ว';
+        return 'เสร็จสมบูรณ์';
       case WorkOrderStatus.cancelled:
         return 'ยกเลิก';
     }

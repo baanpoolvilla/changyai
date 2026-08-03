@@ -24,6 +24,8 @@ class PmSchedule {
   final String? assignedTo;
   /// ผู้รับสำเนาแจ้งเตือน — คัดลอกไปที่ใบงานทุกใบที่สร้างจาก PM นี้
   final List<String> ccUserIds;
+  /// true = จบใบงานแล้วต้องบันทึกค่าใช้จ่าย, false = งานนี้ไม่มีค่าใช้จ่าย
+  final bool requiresExpense;
   final String? assignedToName; // joined from users table
   final String? createdByName; // joined from users table (creator)
   final String? propertyName; // joined from properties table
@@ -47,6 +49,7 @@ class PmSchedule {
     this.isActive = true,
     this.assignedTo,
     this.ccUserIds = const [],
+    this.requiresExpense = true,
     this.assignedToName,
     this.createdByName,
     this.propertyName,
@@ -104,6 +107,8 @@ class PmSchedule {
               ?.map((e) => e as String)
               .toList() ??
           const [],
+      // ยังไม่ได้รัน migration_065 → ไม่มีคอลัมน์นี้ ให้ถือว่ามีค่าใช้จ่ายเหมือนเดิม
+      requiresExpense: json['requires_expense'] as bool? ?? true,
       assignedToName: techName,
       createdByName: creatorName,
       propertyName: propName,
@@ -124,6 +129,7 @@ class PmSchedule {
     'last_completed_date': lastCompletedDate?.toIso8601String(),
     'is_active': isActive,
     'assigned_to': assignedTo,
+    'requires_expense': requiresExpense,
   };
 
   bool get isDueSoon =>

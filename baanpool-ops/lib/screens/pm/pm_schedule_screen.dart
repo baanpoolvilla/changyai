@@ -319,6 +319,8 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     int? selectedRounds; // รอบต่อปี (โหมด yearlyRounds)
     int totalRounds = 6; // จำนวนครั้งทั้งหมด (โหมด limitedCount)
     DateTime nextDue = DateTime.now().add(const Duration(days: 30));
+    // จบใบงานจาก PM นี้แล้วต้องบันทึกค่าใช้จ่ายไหม
+    bool requiresExpense = true;
     String? selectedTechId;
     final ccUserIds = <String>{};
     Set<String> selectedPropertyIds = {};
@@ -629,6 +631,32 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                       ),
                     ],
                     const SizedBox(height: 12),
+                    // ─── ค่าใช้จ่ายเมื่อจบงาน ───────────────
+                    // ส่งต่อไปที่ใบงานทุกใบที่สร้างจาก PM นี้
+                    DropdownButtonFormField<bool>(
+                      value: requiresExpense,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'ค่าใช้จ่ายเมื่อจบงาน',
+                        helperText:
+                            'แบบไม่มีค่าใช้จ่าย พอปิดใบงานจะถือว่าเสร็จสมบูรณ์ทันที '
+                            'ไม่ต้องรอบันทึกค่าใช้จ่าย',
+                        helperMaxLines: 2,
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: true,
+                          child: Text('มีค่าใช้จ่าย'),
+                        ),
+                        DropdownMenuItem(
+                          value: false,
+                          child: Text('ไม่มีค่าใช้จ่าย'),
+                        ),
+                      ],
+                      onChanged: (v) =>
+                          setDialogState(() => requiresExpense = v ?? true),
+                    ),
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<String?>(
                       value: selectedTechId,
                       decoration: const InputDecoration(
@@ -808,6 +836,8 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
               : null,
           'assigned_to': selectedTechId,
           'cc_user_ids': ccUserIds.toList(),
+          // ใบงานที่สร้างจาก PM นี้จะรับค่านี้ไปด้วย (trigger ใน migration_065)
+          'requires_expense': requiresExpense,
         });
       }
 
@@ -1197,6 +1227,9 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                   if (s.assignedToName != null)
                     _chip(Icons.person, s.assignedToName!),
                   if (assetName != null) _chip(Icons.build, assetName),
+                  // โชว์เฉพาะแบบไม่มีค่าใช้จ่าย — แบบมีค่าใช้จ่ายคือค่าปกติอยู่แล้ว
+                  if (!s.requiresExpense)
+                    _chip(Icons.money_off, 'ไม่มีค่าใช้จ่าย'),
                 ],
               ),
             ],
@@ -1654,6 +1687,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     final titleCtrl = TextEditingController(text: s.title);
     final descCtrl = TextEditingController(text: s.description ?? '');
     DateTime nextDue = s.nextDueDate;
+    bool requiresExpense = s.requiresExpense;
 
     final saved = await showDialog<bool>(
       context: context,
@@ -1698,6 +1732,25 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                     if (picked != null) setDialogState(() => nextDue = picked);
                   },
                 ),
+                const SizedBox(height: 12),
+                // มีผลกับใบงานที่สร้างหลังจากนี้ ใบที่สร้างไปแล้วไม่เปลี่ยนตาม
+                DropdownButtonFormField<bool>(
+                  value: requiresExpense,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'ค่าใช้จ่ายเมื่อจบงาน',
+                    helperText: 'มีผลกับใบงานที่สร้างหลังจากนี้',
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: true, child: Text('มีค่าใช้จ่าย')),
+                    DropdownMenuItem(
+                      value: false,
+                      child: Text('ไม่มีค่าใช้จ่าย'),
+                    ),
+                  ],
+                  onChanged: (v) =>
+                      setDialogState(() => requiresExpense = v ?? true),
+                ),
               ],
             ),
           ),
@@ -1732,6 +1785,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
             ? null
             : descCtrl.text.trim(),
         'next_due_date': nextDue.toIso8601String().split('T').first,
+        'requires_expense': requiresExpense,
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

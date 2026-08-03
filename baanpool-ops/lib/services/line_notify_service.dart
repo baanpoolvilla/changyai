@@ -495,9 +495,10 @@ class LineNotifyService {
     int sent = 0;
     try {
       // Get all completed work orders
+      // select() ทั้งแถว — ระบุคอลัมน์ตรงๆ จะพังถ้ายังไม่ได้รัน migration_065
       final completedWos = await _client
           .from('work_orders')
-          .select('id, title, property_id')
+          .select()
           .eq('status', 'completed');
 
       if (completedWos.isEmpty) return 0;
@@ -514,8 +515,11 @@ class LineNotifyService {
       };
 
       // Filter completed work orders that have NO expenses
+      // ใบงานที่ PM ตั้งว่าไม่มีค่าใช้จ่าย ไม่ต้องทวง (migration_065)
       final missingExpenseWos = completedWos
-          .where((wo) => !woIdsWithExpenses.contains(wo['id'] as String))
+          .where((wo) =>
+              wo['requires_expense'] != false &&
+              !woIdsWithExpenses.contains(wo['id'] as String))
           .toList();
 
       if (missingExpenseWos.isEmpty) return 0;
@@ -600,11 +604,11 @@ class LineNotifyService {
   String _statusDisplayName(String status) {
     switch (status) {
       case 'open':
-        return 'เปิด';
+        return 'รอดำเนินการ';
       case 'in_progress':
         return 'กำลังดำเนินการ';
       case 'completed':
-        return 'เสร็จแล้ว';
+        return 'เสร็จสมบูรณ์';
       case 'cancelled':
         return 'ยกเลิก';
       default:

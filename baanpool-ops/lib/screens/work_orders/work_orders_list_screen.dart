@@ -78,12 +78,14 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
   List<WorkOrder> get _inProgressOrders => _visibleOrders
       .where((w) => w.status == WorkOrderStatus.inProgress)
       .toList();
+  /// ใบงานที่ "ไม่มีค่าใช้จ่าย" (ตั้งไว้ที่ PM) ปิดงานแล้วถือว่าเสร็จสมบูรณ์เลย
+  bool _isSettled(WorkOrder w) =>
+      !w.requiresExpense || _workOrderIdsWithExpense.contains(w.id);
+
   List<WorkOrder> get _noExpenseOrders =>
       _visibleOrders
           .where(
-            (w) =>
-                w.status == WorkOrderStatus.completed &&
-                !_workOrderIdsWithExpense.contains(w.id),
+            (w) => w.status == WorkOrderStatus.completed && !_isSettled(w),
           )
           .toList();
   List<WorkOrder> get _completedOrders =>
@@ -91,8 +93,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
           .where(
             (w) =>
                 w.status == WorkOrderStatus.cancelled ||
-                (w.status == WorkOrderStatus.completed &&
-                    _workOrderIdsWithExpense.contains(w.id)),
+                (w.status == WorkOrderStatus.completed && _isSettled(w)),
           )
           .toList();
 
@@ -176,31 +177,34 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
         bottom: (!_isFilterMode && !isDesktop)
             ? TabBar(
                 controller: _tabController,
+                // ป้ายยาวขึ้นแล้ว — เลื่อนได้จะได้ไม่ตัดคำ
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
                 tabs: [
                   Tab(
                     child: _TabLabel(
-                      '🔴 ยังไม่ทำ',
+                      '🔴 รอดำเนินการ',
                       _openOrders.length,
                       Colors.red,
                     ),
                   ),
                   Tab(
                     child: _TabLabel(
-                      '🟡 กำลังทำ',
+                      '🟡 กำลังดำเนินการ',
                       _inProgressOrders.length,
                       Colors.orange,
                     ),
                   ),
                   Tab(
                     child: _TabLabel(
-                      '🟠 ยังไม่บันทึก',
+                      '🟠 เสร็จสิ้น/ยังไม่บันทึกค่าใช้จ่าย',
                       _noExpenseOrders.length,
                       Colors.deepOrange,
                     ),
                   ),
                   Tab(
                     child: _TabLabel(
-                      '✅ เสร็จแล้ว',
+                      '✅ เสร็จสมบูรณ์',
                       _completedOrders.length,
                       Colors.green,
                     ),
@@ -302,7 +306,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
         children: [
           Expanded(
             child: _KanbanColumn(
-              title: 'ยังไม่ทำ',
+              title: 'รอดำเนินการ',
               color: Colors.red,
               icon: Icons.fiber_new,
               orders: _openOrders,
@@ -313,7 +317,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
           const VerticalDivider(width: 1),
           Expanded(
             child: _KanbanColumn(
-              title: 'กำลังทำ',
+              title: 'กำลังดำเนินการ',
               color: Colors.orange,
               icon: Icons.autorenew,
               orders: _inProgressOrders,
@@ -324,7 +328,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
           const VerticalDivider(width: 1),
           Expanded(
             child: _KanbanColumn(
-              title: 'ยังไม่บันทึกค่าใช้จ่าย',
+              title: 'ดำเนินงานเสร็จสิ้น/ยังไม่บันทึกค่าใช้จ่าย',
               color: Colors.deepOrange,
               icon: Icons.receipt_long,
               orders: _noExpenseOrders,
@@ -335,7 +339,7 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
           const VerticalDivider(width: 1),
           Expanded(
             child: _KanbanColumn(
-              title: 'เสร็จแล้ว',
+              title: 'เสร็จสมบูรณ์',
               color: Colors.green,
               icon: Icons.check_circle,
               orders: _completedOrders,
@@ -512,6 +516,8 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
         wo.createdBy != null ? _creatorNames[wo.createdBy] : null;
     final isNew = wo.status == WorkOrderStatus.open;
     final hasExpense = _workOrderIdsWithExpense.contains(wo.id);
+    // PM ที่ตั้งว่า "ไม่มีค่าใช้จ่าย" — ไม่ต้องทวงให้บันทึก
+    final noExpenseNeeded = !wo.requiresExpense;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 0),
@@ -605,45 +611,52 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (wo.status == WorkOrderStatus.completed)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: hasExpense
-                                ? Colors.green.withValues(alpha: 0.1)
-                                : Colors.orange.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: hasExpense
-                                  ? Colors.green.withValues(alpha: 0.3)
-                                  : Colors.orange.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                hasExpense
-                                    ? Icons.receipt_long
-                                    : Icons.receipt_long_outlined,
-                                size: 12,
-                                color:
-                                    hasExpense ? Colors.green : Colors.orange,
+                        Builder(
+                          builder: (_) {
+                            final settled = noExpenseNeeded || hasExpense;
+                            final color =
+                                settled ? Colors.green : Colors.orange;
+                            final label = noExpenseNeeded
+                                ? 'ไม่มีค่าใช้จ่าย'
+                                : hasExpense
+                                ? 'บันทึกค่าใช้จ่ายแล้ว'
+                                : 'ยังไม่บันทึกค่าใช้จ่าย';
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 3,
                               ),
-                              const SizedBox(width: 3),
-                              Text(
-                                hasExpense ? 'บันทึกค่าใช้จ่ายแล้ว' : 'ยังไม่บันทึกค่าใช้จ่าย',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: hasExpense
-                                      ? Colors.green
-                                      : Colors.orange,
+                              decoration: BoxDecoration(
+                                color: color.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: color.withValues(alpha: 0.3),
                                 ),
                               ),
-                            ],
-                          ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    noExpenseNeeded
+                                        ? Icons.money_off
+                                        : hasExpense
+                                        ? Icons.receipt_long
+                                        : Icons.receipt_long_outlined,
+                                    size: 12,
+                                    color: color,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    label,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: color,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
                     ],
                   ),
@@ -693,7 +706,9 @@ class _WorkOrdersListScreenState extends State<WorkOrdersListScreen>
   String _buildTitle() {
     if (_filterMode == 'today') return 'งานใหม่วันนี้';
     if (_filterMode == 'urgent') return 'งานด่วน';
-    if (_filterMode == 'no-expense') return 'ยังไม่บันทึกค่าใช้จ่าย';
+    if (_filterMode == 'no-expense') {
+      return 'ดำเนินงานเสร็จสิ้น/ยังไม่บันทึกค่าใช้จ่าย';
+    }
     if (_propertyId != null) {
       final name = _propertyNames[_propertyId];
       return name != null ? 'ใบงาน: $name' : 'ใบงานของบ้าน';
@@ -736,12 +751,18 @@ class _KanbanColumn extends StatelessWidget {
             children: [
               Icon(icon, color: color, size: 18),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+              // ชื่อคอลัมน์ยาวได้ (เช่น "ดำเนินงานเสร็จสิ้น/ยังไม่บันทึกค่าใช้จ่าย")
+              // ให้ตัดบรรทัดแทนที่จะล้นออกนอกหัวคอลัมน์
+              Flexible(
+                child: Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),

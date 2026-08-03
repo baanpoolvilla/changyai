@@ -269,15 +269,20 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
       TextEditingController(),
     ];
 
+    // งานจาก PM ที่ตั้งไว้ว่า "ไม่มีค่าใช้จ่าย" — ไม่ต้องกรอกประมาณการ
+    final requiresExpense = _workOrder?.requiresExpense ?? true;
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
           bool hasValidItem() =>
+              !requiresExpense ||
               itemNameCtrls.any((c) => c.text.trim().isNotEmpty);
 
           String buildNotesText() {
+            if (!requiresExpense) return '';
             final buf = StringBuffer('ประมาณการค่าใช้จ่าย:\n');
             for (int i = 0; i < itemNameCtrls.length; i++) {
               final name = itemNameCtrls[i].text.trim();
@@ -292,98 +297,104 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
           }
 
           return AlertDialog(
-            title: const Text('ยืนยันทำเสร็จแล้ว'),
+            title: const Text('ยืนยันงานเสร็จสิ้น'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _externalPhotos.isNotEmpty
-                        ? 'มีรูปจากช่างภายนอกแล้ว กรุณากรอกประมาณการค่าใช้จ่ายก่อนกดยืนยัน'
-                        : 'กรุณากรอกประมาณการค่าใช้จ่ายและแนบรูปถ่ายก่อนกดยืนยัน',
+                    !requiresExpense
+                        ? (_externalPhotos.isNotEmpty
+                              ? 'งานนี้ไม่มีค่าใช้จ่าย กดยืนยันได้เลย'
+                              : 'งานนี้ไม่มีค่าใช้จ่าย แนบรูปถ่ายแล้วกดยืนยันได้เลย')
+                        : (_externalPhotos.isNotEmpty
+                              ? 'มีรูปจากช่างภายนอกแล้ว กรุณากรอกประมาณการค่าใช้จ่ายก่อนกดยืนยัน'
+                              : 'กรุณากรอกประมาณการค่าใช้จ่ายและแนบรูปถ่ายก่อนกดยืนยัน'),
                     style: const TextStyle(color: Colors.grey),
                   ),
                   const SizedBox(height: 16),
 
-                  // Expense estimate items
-                  const Text(
-                    'ประมาณการค่าใช้จ่าย *',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  ...List.generate(itemNameCtrls.length, (i) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: TextField(
-                              controller: itemNameCtrls[i],
-                              decoration: InputDecoration(
-                                labelText: 'รายการที่ ${i + 1} *',
-                                hintText: 'เช่น ค่าวัสดุ, ค่าแรงช่าง',
-                                border: const OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                              onChanged: (_) => setDialogState(() {}),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            flex: 2,
-                            child: TextField(
-                              controller: itemPriceCtrls[i],
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              decoration: const InputDecoration(
-                                labelText: 'ราคา (฿)',
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                                prefixText: '฿ ',
-                              ),
-                              onChanged: (_) => setDialogState(() {}),
-                            ),
-                          ),
-                          if (itemNameCtrls.length > 1) ...[
-                            const SizedBox(width: 4),
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: IconButton(
-                                onPressed: () {
-                                  setDialogState(() {
-                                    itemNameCtrls.removeAt(i).dispose();
-                                    itemPriceCtrls.removeAt(i).dispose();
-                                  });
-                                },
-                                icon: const Icon(
-                                  Icons.remove_circle_outline,
-                                  color: Colors.red,
-                                  size: 20,
+                  // Expense estimate items — ข้ามไปถ้า PM ตั้งว่าไม่มีค่าใช้จ่าย
+                  if (requiresExpense) ...[
+                    const Text(
+                      'ประมาณการค่าใช้จ่าย *',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    ...List.generate(itemNameCtrls.length, (i) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: TextField(
+                                controller: itemNameCtrls[i],
+                                decoration: InputDecoration(
+                                  labelText: 'รายการที่ ${i + 1} *',
+                                  hintText: 'เช่น ค่าวัสดุ, ค่าแรงช่าง',
+                                  border: const OutlineInputBorder(),
+                                  isDense: true,
                                 ),
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
+                                onChanged: (_) => setDialogState(() {}),
                               ),
                             ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              flex: 2,
+                              child: TextField(
+                                controller: itemPriceCtrls[i],
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                decoration: const InputDecoration(
+                                  labelText: 'ราคา (฿)',
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                  prefixText: '฿ ',
+                                ),
+                                onChanged: (_) => setDialogState(() {}),
+                              ),
+                            ),
+                            if (itemNameCtrls.length > 1) ...[
+                              const SizedBox(width: 4),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: IconButton(
+                                  onPressed: () {
+                                    setDialogState(() {
+                                      itemNameCtrls.removeAt(i).dispose();
+                                      itemPriceCtrls.removeAt(i).dispose();
+                                    });
+                                  },
+                                  icon: const Icon(
+                                    Icons.remove_circle_outline,
+                                    color: Colors.red,
+                                    size: 20,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                              ),
+                            ],
                           ],
-                        ],
-                      ),
-                    );
-                  }),
-                  TextButton.icon(
-                    onPressed: () {
-                      setDialogState(() {
-                        itemNameCtrls.add(TextEditingController());
-                        itemPriceCtrls.add(TextEditingController());
-                      });
-                    },
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('เพิ่มรายการ'),
-                  ),
+                        ),
+                      );
+                    }),
+                    TextButton.icon(
+                      onPressed: () {
+                        setDialogState(() {
+                          itemNameCtrls.add(TextEditingController());
+                          itemPriceCtrls.add(TextEditingController());
+                        });
+                      },
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('เพิ่มรายการ'),
+                    ),
+                  ],
 
                   const SizedBox(height: 8),
 
@@ -1279,8 +1290,40 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
 
             const SizedBox(height: 16),
 
+            // งานที่ PM ตั้งว่าไม่มีค่าใช้จ่าย — บอกให้ชัดว่าไม่ต้องบันทึกอะไรอีก
+            if (wo.status == WorkOrderStatus.completed &&
+                !wo.requiresExpense &&
+                !_hasExpense) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.money_off, color: Colors.green.shade700, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'งานนี้ไม่มีค่าใช้จ่าย (ตั้งไว้ที่แผน PM) — เสร็จสมบูรณ์แล้ว',
+                        style: TextStyle(color: Colors.green.shade800),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+
             // Expense button for completed work orders (hidden for technicians, hidden if expense already exists)
             if (wo.status == WorkOrderStatus.completed &&
+                wo.requiresExpense &&
                 !_hasExpense &&
                 AuthStateService().currentRole.canManageExpenses) ...[
               FilledButton.icon(
