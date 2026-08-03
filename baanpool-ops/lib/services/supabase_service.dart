@@ -482,13 +482,23 @@ class SupabaseService {
     final frequency = PmFrequency.fromString(
       pm['frequency'] as String? ?? 'monthly',
     );
-    final anchorStr =
-        (pm['anchor_date'] as String?) ?? (pm['next_due_date'] as String);
+    final dueStr = pm['next_due_date'] as String?;
+    final anchorStr = (pm['anchor_date'] as String?) ?? dueStr!;
+
+    // จบงานก่อนถึงกำหนดได้ (ระบบให้สร้างใบงานล่วงหน้าได้ 7 วัน) — ต้องนับ
+    // รอบถัดไปจาก "วันกำหนดของรอบที่เพิ่งจบ" ไม่ใช่วันที่กดจบงาน
+    // ไม่งั้นช่องเวลาถัดไปจะยังเป็นวันกำหนดเดิม = PM ไม่ขยับไปรอบหน้า
+    var after = completedAt;
+    if (dueStr != null) {
+      final due = DateTime.parse(dueStr);
+      if (due.isAfter(after)) after = due;
+    }
+
     return nextDueSlot(
       anchor: DateTime.parse(anchorStr),
       frequency: frequency,
       roundsPerYear: pm['rounds_per_year'] as int?,
-      after: completedAt,
+      after: after,
     );
   }
 

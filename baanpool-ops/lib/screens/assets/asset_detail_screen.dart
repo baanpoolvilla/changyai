@@ -316,6 +316,8 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
     int? selectedRounds; // รอบต่อปี (โหมด yearlyRounds)
     int totalRounds = 6; // จำนวนครั้งทั้งหมด (โหมด limitedCount)
     DateTime nextDue = DateTime.now().add(const Duration(days: 30));
+    // จบใบงานจาก PM นี้แล้วต้องบันทึกค่าใช้จ่ายไหม
+    bool requiresExpense = true;
     String? selectedTechId;
     final ccUserIds = <String>{};
 
@@ -501,6 +503,29 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                         setDialogState(() => totalRounds = v ?? 6),
                   ),
                 const SizedBox(height: 12),
+                // ─── ค่าใช้จ่ายเมื่อจบงาน ───────────────
+                // ส่งต่อไปที่ใบงานทุกใบที่สร้างจาก PM นี้
+                DropdownButtonFormField<bool>(
+                  value: requiresExpense,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'ค่าใช้จ่ายเมื่อจบงาน',
+                    helperText:
+                        'แบบไม่มีค่าใช้จ่าย พอปิดใบงานจะถือว่าเสร็จสมบูรณ์ทันที '
+                        'ไม่ต้องรอบันทึกค่าใช้จ่าย',
+                    helperMaxLines: 2,
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: true, child: Text('มีค่าใช้จ่าย')),
+                    DropdownMenuItem(
+                      value: false,
+                      child: Text('ไม่มีค่าใช้จ่าย'),
+                    ),
+                  ],
+                  onChanged: (v) =>
+                      setDialogState(() => requiresExpense = v ?? true),
+                ),
+                const SizedBox(height: 12),
                 DropdownButtonFormField<String?>(
                   value: selectedTechId,
                   decoration: const InputDecoration(labelText: 'มอบหมายช่าง'),
@@ -579,6 +604,8 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
             : null,
         'assigned_to': selectedTechId,
         'cc_user_ids': ccUserIds.toList(),
+        // ใบงานที่สร้างจาก PM นี้จะรับค่านี้ไปด้วย (trigger ใน migration_065)
+        'requires_expense': requiresExpense,
       });
 
       // When no technician is assigned, notify the property manager (caretaker)
@@ -646,6 +673,130 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
     }
   }
 
+  /// แก้ไข PM จากหน้าอุปกรณ์ — ชุดเดียวกับหน้า PM Dashboard
+  /// (ชื่องาน / รายละเอียด / วันครบกำหนด / ค่าใช้จ่ายเมื่อจบงาน)
+  Future<void> _showEditScheduleDialog(PmSchedule s) async {
+    final titleCtrl = TextEditingController(text: s.title);
+    final descCtrl = TextEditingController(text: s.description ?? '');
+    DateTime nextDue = s.nextDueDate;
+    bool requiresExpense = s.requiresExpense;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('แก้ไข PM Schedule'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleCtrl,
+                  decoration: const InputDecoration(labelText: 'ชื่องาน PM *'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descCtrl,
+                  decoration: const InputDecoration(labelText: 'รายละเอียด'),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('วันครบกำหนดถัดไป'),
+                  subtitle: Text(
+                    '${nextDue.day}/${nextDue.month}/${nextDue.year}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  trailing: const Icon(Icons.calendar_today),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: ctx,
+                      initialDate: nextDue,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now().add(
+                        const Duration(days: 365 * 5),
+                      ),
+                    );
+                    if (picked != null) setDialogState(() => nextDue = picked);
+                  },
+                ),
+                const SizedBox(height: 12),
+                // มีผลกับใบงานที่สร้างหลังจากนี้ ใบที่สร้างไปแล้วไม่เปลี่ยนตาม
+                DropdownButtonFormField<bool>(
+                  value: requiresExpense,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'ค่าใช้จ่ายเมื่อจบงาน',
+                    helperText: 'มีผลกับใบงานที่สร้างหลังจากนี้',
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: true, child: Text('มีค่าใช้จ่าย')),
+                    DropdownMenuItem(
+                      value: false,
+                      child: Text('ไม่มีค่าใช้จ่าย'),
+                    ),
+                  ],
+                  onChanged: (v) =>
+                      setDialogState(() => requiresExpense = v ?? true),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('ยกเลิก'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (titleCtrl.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('กรุณากรอกชื่องาน PM')),
+                  );
+                  return;
+                }
+                Navigator.pop(ctx, true);
+              },
+              child: const Text('บันทึก'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (saved != true) return;
+
+    try {
+      await _service.updatePmSchedule(s.id, {
+        'title': titleCtrl.text.trim(),
+        'description': descCtrl.text.trim().isEmpty
+            ? null
+            : descCtrl.text.trim(),
+        'next_due_date': nextDue.toIso8601String().split('T').first,
+        'requires_expense': requiresExpense,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('แก้ไข PM สำเร็จ'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('แก้ไข PM ล้มเหลว: ${friendlyError(e)}')),
+        );
+      }
+    }
+  }
+
   void _createWorkOrderFromPm(PmSchedule s) {
     final dateStr =
         '${s.nextDueDate.day}/${s.nextDueDate.month}/${s.nextDueDate.year}';
@@ -658,6 +809,9 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
       'propertyId': s.propertyId,
       'description': description,
       'assetId': widget.assetId,
+      // ผูกใบงานกับ PM ใบนี้โดยตรง — จบงานแล้วจะเลื่อนรอบให้ถูกใบ
+      // และรับค่า "มี/ไม่มีค่าใช้จ่าย" ต่อจาก PM ด้วย
+      'pmScheduleId': s.id,
     };
     if (s.assignedTo != null) {
       queryParams['technicianId'] = s.assignedTo!;
@@ -892,7 +1046,13 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                 ),
                 const SizedBox(width: 4),
                 IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 20),
+                  tooltip: 'แก้ไข PM',
+                  onPressed: () => _showEditScheduleDialog(s),
+                ),
+                IconButton(
                   icon: const Icon(Icons.delete_outline, size: 20),
+                  tooltip: 'ลบ PM',
                   onPressed: () => _deleteSchedule(s),
                 ),
               ],
@@ -929,6 +1089,9 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                   _chip(Icons.person, s.assignedToName!),
                 if (s.assignedTo != null && s.assignedToName == null)
                   _chip(Icons.person, 'มอบหมายแล้ว'),
+                // โชว์เฉพาะแบบไม่มีค่าใช้จ่าย — แบบมีค่าใช้จ่ายคือค่าปกติอยู่แล้ว
+                if (!s.requiresExpense)
+                  _chip(Icons.money_off, 'ไม่มีค่าใช้จ่าย'),
               ],
             ),
           ],
