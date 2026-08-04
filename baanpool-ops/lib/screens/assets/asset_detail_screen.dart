@@ -373,8 +373,10 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                     if (v != null) {
                       setDialogState(() {
                         selectedMode = v;
-                        selectedRounds = v == PmMode.yearlyRounds
-                            ? selectedFreq.maxRoundsPerYear - 1
+                        final opts = selectedFreq.roundsPerYearOptions;
+                        selectedRounds =
+                            v == PmMode.yearlyRounds && opts.isNotEmpty
+                            ? opts.last
                             : null;
                       });
                     }
@@ -408,10 +410,10 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                       if (v != null) {
                         setDialogState(() {
                           selectedFreq = v;
+                          // ตัวเลือกรอบเปลี่ยนตามความถี่ → เลือกใหม่ให้อยู่ในลิสต์
                           if (selectedMode == PmMode.yearlyRounds) {
-                            selectedRounds = v.maxRoundsPerYear > 1
-                                ? v.maxRoundsPerYear - 1
-                                : 1;
+                            final opts = v.roundsPerYearOptions;
+                            selectedRounds = opts.isEmpty ? null : opts.last;
                           }
                         });
                       }
@@ -446,7 +448,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                 ),
                 // ─── โหมด: ทำเป็นรอบต่อปี ───
                 if (selectedMode == PmMode.yearlyRounds) ...[
-                  if (selectedFreq.maxRoundsPerYear > 1) ...[
+                  if (selectedFreq.roundsPerYearOptions.isNotEmpty) ...[
                     DropdownButtonFormField<int>(
                       value: selectedRounds,
                       isExpanded: true,
@@ -454,7 +456,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                         labelText: 'ทำกี่รอบต่อปี',
                       ),
                       items: [
-                        for (var i = 1; i < selectedFreq.maxRoundsPerYear; i++)
+                        for (final i in selectedFreq.roundsPerYearOptions)
                           DropdownMenuItem(value: i, child: Text('$i รอบ')),
                       ],
                       onChanged: (v) =>
@@ -592,11 +594,9 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
         // anchor = วันกำหนดรอบแรก — ยึดไว้ไม่ให้วันดริฟต์ตามวันจบงาน
         'anchor_date': nextDue.toIso8601String().split('T').first,
         // ประเภท PM แยกจากข้อมูล — ต้องมีได้แค่อย่างใดอย่างหนึ่ง (DB มี CHECK คุมอยู่)
-        // ความถี่ที่กำหนดรอบไม่ได้ (สัปดาห์ / 12 เดือน) → null = ต่อเนื่อง
-        // กัน 0 หรือ -1 หลุดไปชน CHECK (rounds_per_year BETWEEN 1 AND 12)
-        'rounds_per_year':
-            selectedMode == PmMode.yearlyRounds &&
-                selectedFreq.maxRoundsPerYear > 1
+        // ความถี่ที่กำหนดรอบไม่ได้ (สัปดาห์ / 12 เดือน) → selectedRounds เป็น
+        // null อยู่แล้ว = ต่อเนื่อง และกันค่า 0/-1 ไปชน CHECK ไปในตัว
+        'rounds_per_year': selectedMode == PmMode.yearlyRounds
             ? selectedRounds
             : null,
         'total_rounds': selectedMode == PmMode.limitedCount
