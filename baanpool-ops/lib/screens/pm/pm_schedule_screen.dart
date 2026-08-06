@@ -278,6 +278,18 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     _load();
   }
 
+  /// รายชื่อคนที่มอบหมาย PM ได้ — ใช้ร่วมกันทั้งตอนสร้างและตอนแก้ไข
+  /// Caretaker มอบหมายได้เฉพาะช่างกับผู้ดูแลด้วยกัน (รวมตัวเอง)
+  Future<List<Map<String, dynamic>>> _loadAssignableUsers() async {
+    final allUsers = await _service.getUsers();
+    if (AuthStateService().currentRole == UserRole.caretaker) {
+      return allUsers
+          .where((u) => u['role'] == 'technician' || u['role'] == 'caretaker')
+          .toList();
+    }
+    return allUsers;
+  }
+
   Future<void> _showCreatePmDialog() async {
     // Load properties, assets, and technicians in parallel
     List<Map<String, dynamic>> properties = [];
@@ -287,19 +299,10 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     try {
       final results = await Future.wait([
         _service.getProperties(),
-        _service.getUsers(),
+        _loadAssignableUsers(),
       ]);
       properties = results[0];
-      final allUsers = results[1];
-      final currentRole = AuthStateService().currentRole;
-      if (currentRole == UserRole.caretaker) {
-        // Caretaker can assign to technicians + all caretakers (including themselves)
-        technicians = allUsers
-            .where((u) => u['role'] == 'technician' || u['role'] == 'caretaker')
-            .toList();
-      } else {
-        technicians = allUsers;
-      }
+      technicians = results[1];
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1694,10 +1697,43 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
   }
 
   Future<void> _showEditPmDialog(PmSchedule s) async {
+    // แก้ผู้รับผิดชอบได้ในนี้ด้วย → ต้องมีรายชื่อคนก่อนเปิด dialog
+    List<Map<String, dynamic>> assignees;
+    try {
+      assignees = await _loadAssignableUsers();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'โหลดรายชื่อผู้รับผิดชอบล้มเหลว: ${friendlyError(e)}',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    // คนที่มอบหมายไว้เดิมอาจไม่อยู่ในลิสต์ (เปลี่ยน role / ถูกกรองออก)
+    // ต้องเติมกลับเข้าไป ไม่งั้น dropdown พังเพราะ value ไม่ตรงกับ items
+    if (s.assignedTo != null &&
+        !assignees.any((u) => u['id'] == s.assignedTo)) {
+      assignees = [
+        {
+          'id': s.assignedTo,
+          'full_name': s.assignedToName ?? 'ผู้รับผิดชอบเดิม',
+        },
+        ...assignees,
+      ];
+    }
+    if (!mounted) return;
+
     final titleCtrl = TextEditingController(text: s.title);
     final descCtrl = TextEditingController(text: s.description ?? '');
     DateTime nextDue = s.nextDueDate;
     bool requiresExpense = s.requiresExpense;
+    PmFrequency selectedFreq = s.frequency;
+    int? selectedRounds = s.roundsPerYear;
+    String? selectedTechId = s.assignedTo;
 
     final saved = await showDialog<bool>(
       context: context,
@@ -1719,6 +1755,51 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                   maxLines: 2,
                 ),
                 const SizedBox(height: 12),
+                // ความถี่ — PM แบบจำกัดจำนวนครั้งไม่ใช้ความถี่ (นัดวันเองทีละครั้ง)
+                if (s.mode != PmMode.limitedCount) ...[
+                  DropdownButtonFormField<PmFrequency>(
+                    value: selectedFreq,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'ความถี่'),
+                    items: PmFrequency.values
+                        .map(
+                          (f) => DropdownMenuItem(
+                            value: f,
+                            child: Text(f.displayName),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setDialogState(() {
+                        selectedFreq = v;
+                        // ตัวเลือกรอบต่อปีเปลี่ยนตามความถี่ → ค่าเดิมที่หลุดลิสต์
+                        // จะทำให้ dropdown พัง ต้องเลือกใหม่ให้อยู่ในลิสต์เสมอ
+                        if (s.mode == PmMode.yearlyRounds) {
+                          final opts = v.roundsPerYearOptions;
+                          selectedRounds = opts.isEmpty
+                              ? null
+                              : (opts.contains(selectedRounds)
+                                    ? selectedRounds
+                                    : opts.last);
+                        }
+                      });
+                    },
+                  ),
+                  if (selectedFreq != s.frequency)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        'เปลี่ยนความถี่แล้ว ระบบจะเริ่มนับรอบใหม่ '
+                        'จากวันครบกำหนดถัดไปด้านล่าง',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(ctx).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                ],
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('วันครบกำหนดถัดไป'),
@@ -1742,6 +1823,54 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                     if (picked != null) setDialogState(() => nextDue = picked);
                   },
                 ),
+                // ─── รอบต่อปี — เฉพาะ PM แบบทำเป็นรอบต่อปี ───
+                if (s.mode == PmMode.yearlyRounds) ...[
+                  if (selectedFreq.roundsPerYearOptions.isNotEmpty) ...[
+                    DropdownButtonFormField<int>(
+                      value: selectedRounds,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'ทำกี่รอบต่อปี',
+                      ),
+                      // PM เก่าอาจมีค่ารอบที่ไม่อยู่ในตัวเลือกมาตรฐานแล้ว
+                      // ต้องใส่ค่าเดิมเข้าไปด้วย ไม่งั้น dropdown assert ทันทีที่เปิด
+                      // (และไม่ควรแอบเปลี่ยนค่าที่ผู้ใช้ตั้งไว้ให้เอง)
+                      items: [
+                        for (final i in (<int>{
+                          ...selectedFreq.roundsPerYearOptions,
+                          if (selectedFreq == s.frequency &&
+                              selectedRounds != null)
+                            selectedRounds!,
+                        }.toList()..sort()))
+                          DropdownMenuItem(value: i, child: Text('$i รอบ')),
+                      ],
+                      onChanged: (v) =>
+                          setDialogState(() => selectedRounds = v),
+                    ),
+                    if (selectedRounds != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: _cyclePreview(
+                          ctx,
+                          anchor: nextDue,
+                          frequency: selectedFreq,
+                          rounds: selectedRounds!,
+                        ),
+                      ),
+                  ] else
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        selectedFreq.weekDays != null
+                            ? 'ความถี่แบบสัปดาห์กำหนดรอบต่อปีไม่ได้ '
+                                  '— บันทึกแล้ว PM นี้จะเปลี่ยนเป็นทำต่อเนื่อง'
+                            : 'ความถี่ ${selectedFreq.displayName} '
+                                  'ทำปีละครั้งอยู่แล้ว — บันทึกแล้ว PM นี้'
+                                  'จะเปลี่ยนเป็นทำต่อเนื่อง',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                ],
                 const SizedBox(height: 12),
                 // มีผลกับใบงานที่สร้างหลังจากนี้ ใบที่สร้างไปแล้วไม่เปลี่ยนตาม
                 DropdownButtonFormField<bool>(
@@ -1760,6 +1889,30 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                   ],
                   onChanged: (v) =>
                       setDialogState(() => requiresExpense = v ?? true),
+                ),
+                const SizedBox(height: 12),
+                // เปลี่ยนผู้รับผิดชอบ — มีผลกับใบงานที่สร้างหลังจากนี้
+                DropdownButtonFormField<String?>(
+                  value: selectedTechId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'มอบหมายช่าง',
+                    helperText: 'มีผลกับใบงานที่สร้างหลังจากนี้',
+                  ),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('ไม่ระบุ')),
+                    ...assignees.map(
+                      (t) => DropdownMenuItem(
+                        value: t['id'] as String,
+                        child: Text(
+                          t['full_name'] as String? ??
+                              t['email'] as String? ??
+                              'ไม่ทราบชื่อ',
+                        ),
+                      ),
+                    ),
+                  ],
+                  onChanged: (v) => setDialogState(() => selectedTechId = v),
                 ),
               ],
             ),
@@ -1789,14 +1942,28 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
     if (saved != true) return;
 
     try {
-      await _service.updatePmSchedule(s.id, {
+      final data = <String, dynamic>{
         'title': titleCtrl.text.trim(),
         'description': descCtrl.text.trim().isEmpty
             ? null
             : descCtrl.text.trim(),
         'next_due_date': nextDue.toIso8601String().split('T').first,
         'requires_expense': requiresExpense,
-      });
+        'assigned_to': selectedTechId,
+      };
+      // PM แบบจำกัดจำนวนครั้งไม่ใช้ความถี่/รอบต่อปี จึงไม่แตะสองค่านี้
+      if (s.mode != PmMode.limitedCount) {
+        data['frequency'] = selectedFreq.toDbValue;
+        data['rounds_per_year'] = s.mode == PmMode.yearlyRounds
+            ? selectedRounds
+            : null;
+        // เปลี่ยนความถี่ = เริ่มนับรอบใหม่จากวันครบกำหนดที่ตั้งไว้
+        // ถ้าไม่ย้าย anchor วันรอบถัดไปจะเด้งกลับไปตกตามกริดของความถี่เดิม
+        if (selectedFreq != s.frequency) {
+          data['anchor_date'] = nextDue.toIso8601String().split('T').first;
+        }
+      }
+      await _service.updatePmSchedule(s.id, data);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
