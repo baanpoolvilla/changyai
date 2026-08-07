@@ -36,6 +36,16 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
   List<Map<String, dynamic>> _externalPhotos = [];
   bool _creatingUploadLink = false;
 
+  /// ข้อความจากช่างภายนอกแบบไม่ซ้ำ เรียงตามลำดับที่ส่งเข้ามา
+  List<String> get _externalPhotoNotes {
+    final notes = <String>{};
+    for (final photo in _externalPhotos) {
+      final note = (photo['note'] as String?)?.trim();
+      if (note != null && note.isNotEmpty) notes.add(note);
+    }
+    return notes.toList();
+  }
+
   // Comments
   List<WorkOrderComment> _comments = [];
   final _commentController = TextEditingController();
@@ -1057,6 +1067,32 @@ class _WorkOrderDetailScreenState extends State<WorkOrderDetailScreen> {
                           },
                         ),
                       ),
+                      // ข้อความที่ช่างพิมพ์แนบมากับรูป (migration 066)
+                      // รูปชุดเดียวกันใช้ข้อความเดียวกัน จึงแสดงแบบไม่ซ้ำ
+                      if (_externalPhotoNotes.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        for (final note in _externalPhotoNotes)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.chat_bubble_outline,
+                                  size: 16,
+                                  color: theme.colorScheme.outline,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    note,
+                                    style: theme.textTheme.bodyMedium,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ],
                   ),
                 ),

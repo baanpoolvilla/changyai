@@ -150,14 +150,7 @@ class CcPickerField extends StatelessWidget {
             ),
           ],
         ),
-        if (selected.isEmpty)
-          Text(
-            'ไม่มี — แจ้งเฉพาะผู้รับผิดชอบ',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.outline,
-            ),
-          )
-        else
+        if (selected.isNotEmpty)
           Wrap(
             spacing: 6,
             runSpacing: 4,

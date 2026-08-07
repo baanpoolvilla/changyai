@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/clipboard_paste.dart';
 import '../../utils/error_message.dart';
 import '../../utils/image_upload.dart';
 
@@ -22,14 +23,19 @@ class ExternalWorkOrderUploadScreen extends StatefulWidget {
 class _ExternalWorkOrderUploadScreenState
     extends State<ExternalWorkOrderUploadScreen> {
   static const int _maxFileBytes = 10 * 1024 * 1024;
+  static const int _maxNoteLength = 500;
 
   final _service = SupabaseService(Supabase.instance.client);
   final _picker = ImagePicker();
+  final _noteController = TextEditingController();
   Map<String, dynamic>? _uploadContext;
   List<XFile> _selected = [];
   bool _loading = true;
   bool _uploading = false;
   String? _error;
+
+  /// ตัวเลิกดัก paste event (no-op นอกเว็บ)
+  late final void Function() _stopPasteListener;
 
   int get _uploadCount =>
       (_uploadContext?['upload_count'] as num?)?.toInt() ?? 0;
@@ -41,7 +47,19 @@ class _ExternalWorkOrderUploadScreenState
   @override
   void initState() {
     super.initState();
+    _stopPasteListener = listenForPastedImages(
+      _addImages,
+      onRejected: () =>
+          _showMessage('รูปที่วางมาเป็นชนิดที่ระบบไม่รองรับ (รับ jpg/png/webp)'),
+    );
     _load();
+  }
+
+  @override
+  void dispose() {
+    _stopPasteListener();
+    _noteController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -68,15 +86,26 @@ class _ExternalWorkOrderUploadScreenState
     }
   }
 
+  /// เพิ่มรูปเข้าคิว — ใช้ร่วมกันทั้งเลือกไฟล์ ถ่ายรูป และวางจากคลิปบอร์ด
+  void _addImages(List<XFile> files) {
+    // ระหว่างกำลังส่งอยู่ห้ามเพิ่ม ไม่งั้นรูปที่วางเข้ามาจะถูกล้างทิ้งพร้อมคิวเดิม
+    if (!mounted || _uploading || files.isEmpty) return;
+    final room = _remaining - _selected.length;
+    if (room <= 0) {
+      _showMessage('ส่งได้อีกสูงสุด $_remaining รูป');
+      return;
+    }
+    final allowed = files.take(room).toList();
+    setState(() => _selected = [..._selected, ...allowed]);
+    if (files.length > allowed.length) {
+      _showMessage('เพิ่มได้อีกสูงสุด $room รูป');
+    }
+  }
+
   Future<void> _pickFromGallery() async {
     try {
       final files = await pickUploadImages(_picker);
-      if (files.isEmpty || !mounted) return;
-      final allowed = files.take(_remaining).toList();
-      setState(() => _selected = allowed);
-      if (files.length > allowed.length) {
-        _showMessage('เลือกได้อีกสูงสุด $_remaining รูป');
-      }
+      _addImages(files);
     } catch (e) {
       _showMessage('เลือกรูปไม่สำเร็จ: ${friendlyError(e)}');
     }
@@ -85,7 +114,7 @@ class _ExternalWorkOrderUploadScreenState
   Future<void> _takePhoto() async {
     try {
       final file = await pickUploadImage(_picker, ImageSource.camera);
-      if (file != null && mounted) setState(() => _selected = [file]);
+      if (file != null) _addImages([file]);
     } catch (e) {
       _showMessage('เปิดกล้องไม่สำเร็จ: ${friendlyError(e)}');
     }
@@ -94,6 +123,9 @@ class _ExternalWorkOrderUploadScreenState
   Future<void> _upload() async {
     if (_selected.isEmpty || _uploading) return;
     setState(() => _uploading = true);
+
+    // ข้อความเดียวกันติดไปกับทุกรูปในรอบนี้ ผู้ดูแลจะได้เห็นว่ารูปชุดนี้คืออะไร
+    final note = _noteController.text.trim();
 
     var uploaded = 0;
     try {
@@ -106,10 +138,12 @@ class _ExternalWorkOrderUploadScreenState
           widget.token,
           file.name,
           bytes,
+          note: note.isEmpty ? null : note,
         );
         uploaded++;
       }
       _selected = [];
+      _noteController.clear();
       await _load();
       _showMessage('ส่งรูปสำเร็จ $uploaded รูป', success: true);
     } catch (e) {
@@ -187,7 +221,8 @@ class _ExternalWorkOrderUploadScreenState
         ),
         const SizedBox(height: 8),
         const Text(
-          'หน้านี้ใช้ส่งรูปเท่านั้น คุณไม่สามารถเปลี่ยนสถานะหรือแก้ไขใบงานได้',
+          'หน้านี้ใช้ส่งรูปและข้อความเท่านั้น '
+          'คุณไม่สามารถเปลี่ยนสถานะหรือแก้ไขใบงานได้',
           textAlign: TextAlign.center,
           style: TextStyle(color: Colors.grey),
         ),
@@ -250,8 +285,36 @@ class _ExternalWorkOrderUploadScreenState
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.content_paste_outlined, size: 16, color: Colors.grey),
+              SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  'ก๊อปรูปมาแล้วกด Ctrl+V (Mac: ⌘+V) วางตรงนี้ได้เลย',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _noteController,
+            enabled: !_uploading,
+            maxLines: 3,
+            maxLength: _maxNoteLength,
+            textInputAction: TextInputAction.newline,
+            decoration: const InputDecoration(
+              labelText: 'ข้อความถึงผู้ดูแล (ไม่บังคับ)',
+              hintText: 'เช่น เปลี่ยนอะไหล่ตัวไหน เจอปัญหาอะไรเพิ่ม',
+              border: OutlineInputBorder(),
+              alignLabelWithHint: true,
+            ),
+          ),
           if (_selected.isNotEmpty) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(12),
@@ -273,6 +336,16 @@ class _ExternalWorkOrderUploadScreenState
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
+                            ),
+                            IconButton(
+                              onPressed: _uploading
+                                  ? null
+                                  : () => setState(
+                                      () => _selected.remove(file),
+                                    ),
+                              icon: const Icon(Icons.close, size: 18),
+                              tooltip: 'เอาออก',
+                              visualDensity: VisualDensity.compact,
                             ),
                           ],
                         ),

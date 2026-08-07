@@ -522,10 +522,10 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                     helperMaxLines: 2,
                   ),
                   items: const [
-                    DropdownMenuItem(value: true, child: Text('มีค่าใช้จ่าย')),
+                    DropdownMenuItem(value: true, child: Text('มี ค่าใช้จ่าย')),
                     DropdownMenuItem(
                       value: false,
-                      child: Text('ไม่มีค่าใช้จ่าย'),
+                      child: Text('ไม่มี ค่าใช้จ่าย'),
                     ),
                   ],
                   onChanged: (v) =>
@@ -534,7 +534,9 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String?>(
                   value: selectedTechId,
-                  decoration: const InputDecoration(labelText: 'มอบหมายช่าง'),
+                  decoration: const InputDecoration(
+                    labelText: 'ผู้รับผิดชอบ(PM)',
+                  ),
                   items: [
                     const DropdownMenuItem(value: null, child: Text('ไม่ระบุ')),
                     ...technicians.map(
@@ -850,10 +852,10 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                     helperText: 'มีผลกับใบงานที่สร้างหลังจากนี้',
                   ),
                   items: const [
-                    DropdownMenuItem(value: true, child: Text('มีค่าใช้จ่าย')),
+                    DropdownMenuItem(value: true, child: Text('มี ค่าใช้จ่าย')),
                     DropdownMenuItem(
                       value: false,
-                      child: Text('ไม่มีค่าใช้จ่าย'),
+                      child: Text('ไม่มี ค่าใช้จ่าย'),
                     ),
                   ],
                   onChanged: (v) =>
@@ -865,7 +867,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                   value: selectedTechId,
                   isExpanded: true,
                   decoration: const InputDecoration(
-                    labelText: 'มอบหมายช่าง',
+                    labelText: 'ผู้รับผิดชอบ(PM)',
                     helperText: 'มีผลกับใบงานที่สร้างหลังจากนี้',
                   ),
                   items: [
@@ -1245,7 +1247,7 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                   _chip(Icons.person, 'มอบหมายแล้ว'),
                 // โชว์เฉพาะแบบไม่มีค่าใช้จ่าย — แบบมีค่าใช้จ่ายคือค่าปกติอยู่แล้ว
                 if (!s.requiresExpense)
-                  _chip(Icons.money_off, 'ไม่มีค่าใช้จ่าย'),
+                  _chip(Icons.money_off, 'ไม่มี ค่าใช้จ่าย'),
               ],
             ),
           ],

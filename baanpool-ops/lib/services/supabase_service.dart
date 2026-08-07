@@ -774,11 +774,14 @@ class SupabaseService {
   }
 
   /// อัปโหลดรูปจาก public link และผูกไฟล์กับใบงานผ่าน RPC
+  ///
+  /// [note] คือข้อความที่ช่างพิมพ์แนบมากับรูป (migration 066)
   Future<String> uploadExternalWorkOrderPhoto(
     String token,
     String originalName,
-    Uint8List bytes,
-  ) async {
+    Uint8List bytes, {
+    String? note,
+  }) async {
     final rawExt = originalName.contains('.')
         ? originalName.split('.').last.toLowerCase()
         : 'jpg';
@@ -794,10 +797,24 @@ class SupabaseService {
           bytes,
           fileOptions: FileOptions(contentType: _mimeFromPath(path)),
         );
-    await _client.rpc(
-      'register_external_work_order_photo',
-      params: {'p_token': token, 'p_storage_path': path},
-    );
+    try {
+      await _client.rpc(
+        'register_external_work_order_photo',
+        params: {
+          'p_token': token,
+          'p_storage_path': path,
+          'p_note': note,
+        },
+      );
+    } on PostgrestException catch (e) {
+      // ยังไม่ได้รัน migration_066 → ฟังก์ชันยังไม่รับ p_note
+      // ยอมทิ้งข้อความไว้ก่อนดีกว่าปล่อยให้รูปที่อัปโหลดไปแล้วหลุดจากใบงาน
+      if (e.code != 'PGRST202') rethrow;
+      await _client.rpc(
+        'register_external_work_order_photo',
+        params: {'p_token': token, 'p_storage_path': path},
+      );
+    }
     return _client.storage.from('photos').getPublicUrl(path);
   }
 
@@ -805,11 +822,21 @@ class SupabaseService {
   Future<List<Map<String, dynamic>>> getExternalWorkOrderPhotos(
     String workOrderId,
   ) async {
-    final data = await _client
-        .from('work_order_external_photos')
-        .select('id, storage_path, uploaded_at')
-        .eq('work_order_id', workOrderId)
-        .order('uploaded_at', ascending: true);
+    List<Map<String, dynamic>> data;
+    try {
+      data = await _client
+          .from('work_order_external_photos')
+          .select('id, storage_path, uploaded_at, note')
+          .eq('work_order_id', workOrderId)
+          .order('uploaded_at', ascending: true);
+    } on PostgrestException {
+      // ยังไม่ได้รัน migration_066 → ยังไม่มีคอลัมน์ note
+      data = await _client
+          .from('work_order_external_photos')
+          .select('id, storage_path, uploaded_at')
+          .eq('work_order_id', workOrderId)
+          .order('uploaded_at', ascending: true);
+    }
     return data.map<Map<String, dynamic>>((row) {
       final path = row['storage_path'] as String;
       return {

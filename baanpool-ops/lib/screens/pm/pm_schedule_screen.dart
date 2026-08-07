@@ -646,11 +646,11 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                       items: const [
                         DropdownMenuItem(
                           value: true,
-                          child: Text('มีค่าใช้จ่าย'),
+                          child: Text('มี ค่าใช้จ่าย'),
                         ),
                         DropdownMenuItem(
                           value: false,
-                          child: Text('ไม่มีค่าใช้จ่าย'),
+                          child: Text('ไม่มี ค่าใช้จ่าย'),
                         ),
                       ],
                       onChanged: (v) =>
@@ -660,7 +660,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                     DropdownButtonFormField<String?>(
                       value: selectedTechId,
                       decoration: const InputDecoration(
-                        labelText: 'มอบหมายช่าง',
+                        labelText: 'ผู้รับผิดชอบ(PM)',
                       ),
                       items: [
                         const DropdownMenuItem(
@@ -1233,7 +1233,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                   if (assetName != null) _chip(Icons.build, assetName),
                   // โชว์เฉพาะแบบไม่มีค่าใช้จ่าย — แบบมีค่าใช้จ่ายคือค่าปกติอยู่แล้ว
                   if (!s.requiresExpense)
-                    _chip(Icons.money_off, 'ไม่มีค่าใช้จ่าย'),
+                    _chip(Icons.money_off, 'ไม่มี ค่าใช้จ่าย'),
                 ],
               ),
             ],
@@ -1881,10 +1881,10 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                     helperText: 'มีผลกับใบงานที่สร้างหลังจากนี้',
                   ),
                   items: const [
-                    DropdownMenuItem(value: true, child: Text('มีค่าใช้จ่าย')),
+                    DropdownMenuItem(value: true, child: Text('มี ค่าใช้จ่าย')),
                     DropdownMenuItem(
                       value: false,
-                      child: Text('ไม่มีค่าใช้จ่าย'),
+                      child: Text('ไม่มี ค่าใช้จ่าย'),
                     ),
                   ],
                   onChanged: (v) =>
@@ -1896,7 +1896,7 @@ class _PmScheduleScreenState extends State<PmScheduleScreen> {
                   value: selectedTechId,
                   isExpanded: true,
                   decoration: const InputDecoration(
-                    labelText: 'มอบหมายช่าง',
+                    labelText: 'ผู้รับผิดชอบ(PM)',
                     helperText: 'มีผลกับใบงานที่สร้างหลังจากนี้',
                   ),
                   items: [
